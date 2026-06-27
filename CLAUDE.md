@@ -37,9 +37,14 @@ Always `python3 -m` — this box has a second pip/python pair, and the deps live
 declarative — if you need new behavior, extend the harness, don't hand-write training loops
 in experiment folders.
 
-Two modalities exist today: `tiny_gpt` on sequence tasks (copy/sort) and `mlp` on vector
-classification (digits/wine/breast_cancer/synth_cls). Adding a new arch/task/optimizer/loss
-means extending `harness/` (and `harness/config.py`) — itself a fine "one thing" for a day.
+The project is a "nano-nanochat": the LLM **post-training stack** on a modern tiny transformer
+(`NanoLM`: RoPE, RMSNorm, ReLU², QK-norm, no-bias, untied embeddings), in a **verifiable**
+world (`arith`). Experiments declare a pipeline `stage`: `pretrain` → `sft` → `rm` → `dpo` →
+`grpo` (rm/dpo/grpo are stubs to be built on their scheduled days). Chain stages with
+`init_from: experiments/<dir>` (loads that run's gitignored `model.pt`). A vector-classification
+side-track (`mlp` on sklearn data, `stage: supervised`) exists for fast pure-optimization days.
+Adding a new stage/arch/task/optimizer/loss means extending `harness/` (and `harness/config.py`)
+— itself a fine "one thing" for a day.
 
 ## Baselines
 

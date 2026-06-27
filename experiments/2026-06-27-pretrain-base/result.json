@@ -1,0 +1,144 @@
+{
+  "name": "pretrain-base",
+  "stage": "pretrain",
+  "hypothesis": "A ~0.6M-param modern decoder can learn 2-digit addition from scratch on CPU when answers are emitted least-significant-digit-first. Expect a sharp grokking-style jump to high exact-match.",
+  "compare_to": null,
+  "config": {
+    "name": "pretrain-base",
+    "description": "Base LM \u2014 a modern from-scratch NanoLM (RoPE, RMSNorm, ReLU^2, QK-norm, no-bias) pretrained next-token on 2-digit addition. Foundation for the SFT/RM/DPO/GRPO stages.",
+    "hypothesis": "A ~0.6M-param modern decoder can learn 2-digit addition from scratch on CPU when answers are emitted least-significant-digit-first. Expect a sharp grokking-style jump to high exact-match.",
+    "stage": "pretrain",
+    "init_from": null,
+    "seed": 1234,
+    "needs_gpu": false,
+    "compare_to": null,
+    "data": {
+      "task": "arith",
+      "max_train": 6000,
+      "max_eval": 1000,
+      "seed": 0,
+      "op": "add",
+      "max_digits": 2,
+      "reverse_answer": true,
+      "n_features": 40,
+      "n_informative": 10,
+      "n_classes": 4,
+      "seq_len": 10,
+      "vocab": 12
+    },
+    "model": {
+      "arch": "nanolm",
+      "d_model": 128,
+      "n_heads": 4,
+      "n_kv_heads": null,
+      "n_layers": 3,
+      "block_size": 16,
+      "dropout": 0.0,
+      "hidden": 128,
+      "depth": 2,
+      "lora": {
+        "enabled": false,
+        "r": 8,
+        "alpha": 16,
+        "dropout": 0.0,
+        "target_modules": [
+          "attn_q",
+          "attn_v"
+        ]
+      },
+      "freeze": [],
+      "quantize_dynamic": false
+    },
+    "train": {
+      "epochs": 8,
+      "batch_size": 64,
+      "loss": "cross_entropy",
+      "label_smoothing": 0.0,
+      "focal_gamma": 2.0,
+      "optimizer": "adamw",
+      "lr": 0.003,
+      "momentum": 0.9,
+      "weight_decay": 0.01,
+      "scheduler": "cosine",
+      "warmup_ratio": 0.1,
+      "grad_clip": 1.0,
+      "eval_every_epoch": true,
+      "mask_prompt": true,
+      "dpo_beta": 0.1,
+      "grpo_group": 8,
+      "grpo_kl": 0.0,
+      "sample_temperature": 1.0
+    }
+  },
+  "config_hash": "4c08ed61a4cf",
+  "params": {
+    "total": 593920,
+    "trainable": 593920
+  },
+  "wall_seconds": 24.07,
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": 1.7302,
+      "eval_loss": 1.4148,
+      "exact_match": 0.007
+    },
+    {
+      "epoch": 1,
+      "train_loss": 1.3976,
+      "eval_loss": 1.387,
+      "exact_match": 0.011
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.3824,
+      "eval_loss": 1.3779,
+      "exact_match": 0.018
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.3404,
+      "eval_loss": 1.2709,
+      "exact_match": 0.064
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.2116,
+      "eval_loss": 1.1298,
+      "exact_match": 0.333
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.067,
+      "eval_loss": 1.0127,
+      "exact_match": 0.888
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.9964,
+      "eval_loss": 0.9795,
+      "exact_match": 0.968
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.9761,
+      "eval_loss": 0.9757,
+      "exact_match": 0.972
+    }
+  ],
+  "final": {
+    "epoch": 7,
+    "train_loss": 0.9761,
+    "eval_loss": 0.9757,
+    "exact_match": 0.972
+  },
+  "env": {
+    "python": "3.11.15",
+    "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+    "cpu_count": 4,
+    "git_sha": "3bc83a7",
+    "torch": "2.12.1+cu130",
+    "cuda_available": false,
+    "num_threads": 4
+  }
+}

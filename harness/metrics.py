@@ -1,16 +1,22 @@
-"""Pluggable loss functions and evaluation metrics for both modalities."""
+"""Pluggable loss functions and evaluation metrics."""
 from __future__ import annotations
 
 import torch
 import torch.nn.functional as F
 
+IGNORE = -100
+
 
 def compute_loss(logits: torch.Tensor, targets: torch.Tensor, cfg) -> torch.Tensor:
-    """Loss selected by config. Accepts (B, C) classification logits or (B, T, V)
-    sequence logits — the latter is flattened to (B*T, V) for token-level CE."""
+    """Loss selected by config. Accepts (B, C) class logits or (B, T, V) sequence logits
+    (flattened to (B*T, V)). Targets == IGNORE are dropped (prompt-loss masking / padding)."""
     if logits.dim() == 3:
         logits = logits.reshape(-1, logits.size(-1))
         targets = targets.reshape(-1)
+
+    keep = targets != IGNORE
+    if not keep.all():
+        logits, targets = logits[keep], targets[keep]
 
     kind = cfg.loss
     if kind == "cross_entropy":
@@ -40,10 +46,8 @@ def classification_metrics(preds: torch.Tensor, labels: torch.Tensor, num_classe
 
 
 def sequence_metrics(logits: torch.Tensor, targets: torch.Tensor, answer_start: int) -> dict:
-    """Score only the answer region. Reports per-token accuracy and exact-sequence match."""
-    preds = logits.argmax(-1)                       # (B, T)
-    ans_pred = preds[:, answer_start:]
-    ans_true = targets[:, answer_start:]
+    preds = logits.argmax(-1)
+    ans_pred, ans_true = preds[:, answer_start:], targets[:, answer_start:]
     token_acc = (ans_pred == ans_true).float().mean().item()
     exact = (ans_pred == ans_true).all(dim=1).float().mean().item()
     return {"token_accuracy": round(token_acc, 4), "exact_match": round(exact, 4)}

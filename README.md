@@ -1,13 +1,14 @@
 # daily-research
 
-A personal lab for **everyday model-training research and self-improvement**: fine-tune
-small open-source models on open datasets, one small experiment at a time, driven by a
-team of collaborating research agents.
+A personal lab for **everyday LLM-research and self-improvement**: build the real
+**post-training stack** (SFT → reward modeling → DPO → GRPO) on a *modern* tiny transformer,
+from scratch, one small experiment at a time, driven by a team of collaborating research
+agents. Think "nano-nanochat" — the LLM pipeline shrunk to run on a CPU in seconds.
 
 ## The idea
 
-- **One small thing, daily.** Each day we change *exactly one knob* (learning rate,
-  optimizer, LoRA rank, quantization, a layer trick, a loss function, …), run a fast
+- **One small thing, daily.** Each day we change *exactly one knob* (prompt-loss masking,
+  DPO's β, the KL coefficient, LoRA rank, an architecture component, …), run a fast
   experiment, and write down what happened. Controlled ablations, not heroics.
 - **An agent team does the work.** A lead PhD researcher writes goals and the daily plan;
   data scientists find/prepare data; senior researchers build and train models; an error
@@ -19,21 +20,22 @@ team of collaborating research agents.
 
 This runs **CPU-only** (no GPU) in an ephemeral container, and **egress is restricted** —
 `huggingface.co` and `download.pytorch.org` are blocked by org policy; only PyPI is reachable.
-So we **don't download pretrained models or datasets**. Instead we **train small models from
+So we **don't download pretrained models or datasets**. Instead we **build the LLM stack from
 scratch on offline data**:
 
-- **Models from scratch:** a tiny MLP and a **TinyGPT** (a real decoder-only transformer,
-  ~100K params) — which exercises *architecture & layer optimization* directly.
-- **Offline data:** scikit-learn's *bundled* datasets (`digits`, `wine`, `breast_cancer`) and
-  locally-generated **algorithmic tasks** (copy / sort) for the sequence model.
-- **All the techniques still apply:** optimizers (AdamW/SGD/Lion/Adafactor), LR schedules,
-  loss functions (CE / label-smoothing / focal), weight decay, grad clipping, **LoRA**
-  (implemented from scratch on `nn.Linear`), and **dynamic int8 quantization**.
+- **`NanoLM` — the LLM core recipe, shrunk:** RoPE positions, RMSNorm (no learnable params),
+  ReLU² MLP, QK-norm, no biases, untied embeddings, optional GQA, greedy `generate()`. The
+  same architecture family as nanochat/Llama, at ~0.6M params.
+- **A *verifiable* world:** arithmetic (`a + b = c`). The reward is a programmatic check, so we
+  get **RLVR/GRPO with no reward model and no human labels**, and ground-truth SFT/preference
+  data for free. (A fast vector-classification side-track on sklearn `digits` also exists.)
+- **The real post-training stack** as pipeline `stage`s: `pretrain` → `sft` (with prompt-loss
+  masking) → `rm` (Bradley-Terry reward model) → `dpo` → `grpo`. Plus from-scratch **LoRA**,
+  **dynamic int8 quantization**, and a full optimizer/scheduler/loss toolkit.
 
-Every run finishes in *seconds-to-minutes*. A config can be flagged `needs_gpu: true` to be
-run elsewhere (e.g. on a real HF model) and have its results committed back. If you want to
-use real HuggingFace models/datasets here, the egress policy would need `huggingface.co`
-allow-listed.
+Every run finishes in *seconds-to-minutes*. A config can be flagged `needs_gpu: true` to be run
+elsewhere (e.g. fine-tuning a real HF model) and have its results committed back; using real
+HuggingFace models/datasets here would need `huggingface.co` allow-listed in the egress policy.
 
 ## Layout
 
@@ -63,8 +65,9 @@ schedule.md          # the rolling daily plan, written by the lead researcher
 
 ```bash
 python3 -m pip install -r requirements.txt
-python3 -m harness.train experiments/_template/config.yaml      # ~0.4s smoke test
-python3 -m harness.train experiments/2026-06-27-baseline/config.yaml   # ~8s, the baseline
+python3 -m harness.train experiments/_template/config.yaml             # ~1s smoke test
+python3 -m harness.train experiments/2026-06-27-pretrain-base/config.yaml   # ~24s, the base LM
+python3 -m harness.train experiments/2026-06-27-sft-masked/config.yaml      # SFT (prompt-masked)
 ```
 
 See `CLAUDE.md` for conventions the agent team follows.

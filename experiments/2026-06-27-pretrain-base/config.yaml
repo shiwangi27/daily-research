@@ -1,0 +1,38 @@
+name: pretrain-base
+stage: pretrain
+description: Base LM — a modern from-scratch NanoLM (RoPE, RMSNorm, ReLU^2, QK-norm, no-bias) pretrained next-token on 2-digit addition. Foundation for the SFT/RM/DPO/GRPO stages.
+hypothesis: A ~0.6M-param modern decoder can learn 2-digit addition from scratch on CPU when answers are emitted least-significant-digit-first. Expect a sharp grokking-style jump to high exact-match.
+seed: 1234
+needs_gpu: false
+compare_to: null
+
+data:
+  task: arith
+  op: add
+  max_digits: 2
+  reverse_answer: true
+  max_train: 6000
+  max_eval: 1000
+  seed: 0
+
+model:
+  arch: nanolm
+  d_model: 128
+  n_heads: 4
+  n_layers: 3
+  block_size: 16
+  dropout: 0.0
+  quantize_dynamic: false
+  lora:
+    enabled: false
+
+train:
+  epochs: 8
+  batch_size: 64
+  loss: cross_entropy
+  optimizer: adamw
+  lr: 3.0e-3
+  weight_decay: 0.01
+  scheduler: cosine
+  warmup_ratio: 0.1
+  grad_clip: 1.0

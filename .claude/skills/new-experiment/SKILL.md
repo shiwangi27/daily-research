@@ -33,13 +33,18 @@ Create a one-knob experiment folder, correctly derived from a baseline.
 
 ## Knob menu (one per day)
 
-| Theme            | Knobs to vary                                                          |
-|------------------|------------------------------------------------------------------------|
-| Optimization     | `optimizer` (adamw/sgd/adafactor/lion), `lr`, `momentum`, `weight_decay`|
-| LR schedule      | `scheduler` (none/linear/cosine), `warmup_ratio`                        |
-| Regularization   | `loss` (label_smoothing/focal), `label_smoothing`, `lora.dropout`      |
-| Efficiency       | `lora.enabled`/`r`/`alpha`, `freeze_encoder`, `quantize_dynamic`        |
-| Capacity/data    | `model.name`, `data.max_train`, `data.max_length`, `batch_size`, `epochs`|
+The `stage` is usually fixed by where we are in the pipeline; vary one knob *within* it.
 
-Adding a *new* knob (a new optimizer/loss/model family) means extending `harness/` first — that
-is itself a worthy "one thing" for a day.
+| Theme            | Knobs to vary                                                            |
+|------------------|--------------------------------------------------------------------------|
+| SFT mechanics    | `train.mask_prompt`, chat-template/special tokens, `epochs` (overfit)     |
+| Preference (DPO) | `train.dpo_beta` (the KL strength), reference = base vs SFT               |
+| RL (GRPO/RLVR)   | `train.grpo_kl`, `train.grpo_group`, `train.sample_temperature`          |
+| PEFT             | `model.lora.enabled`/`r`/`alpha`/`target_modules`, `model.freeze`         |
+| Architecture     | RoPE↔learned, RMSNorm↔LayerNorm, ReLU²↔GELU, QK-norm on/off, GQA `n_kv_heads` |
+| Optimization     | `optimizer` (adamw/sgd/adafactor/lion), `lr`, `scheduler`, `warmup_ratio`, `weight_decay` |
+| Efficiency       | `model.quantize_dynamic`                                                  |
+| Task/data        | `data.max_digits`, `data.op`, `data.reverse_answer`, `data.max_train`, `batch_size` |
+
+Adding a *new* stage or knob (the `rm`/`dpo`/`grpo` stages, a new architecture component, a new
+optimizer/loss) means extending `harness/` first — itself a worthy "one thing" for a day.

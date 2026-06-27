@@ -1,0 +1,21 @@
+name: sft-unmasked
+stage: sft
+description: SFT baseline — instruction-tune NanoLM on the arithmetic chat format with prompt-loss masking OFF (loss on every token, including the random prompt digits).
+hypothesis: The one knob is prompt-loss masking. Without it the model spends capacity predicting unpredictable prompt digits; expect markedly lower answer exact-match at the same budget.
+seed: 1234
+needs_gpu: false
+compare_to: 2026-06-27-sft-masked
+
+data: {task: arith, op: add, max_digits: 2, reverse_answer: true, max_train: 6000, max_eval: 1000, seed: 0}
+model: {arch: nanolm, d_model: 128, n_heads: 4, n_layers: 3, block_size: 16, dropout: 0.0, lora: {enabled: false}}
+train:
+  epochs: 10
+  batch_size: 64
+  loss: cross_entropy
+  optimizer: adamw
+  lr: 3.0e-3
+  weight_decay: 0.01
+  scheduler: cosine
+  warmup_ratio: 0.1
+  grad_clip: 1.0
+  mask_prompt: false

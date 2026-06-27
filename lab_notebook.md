@@ -5,34 +5,59 @@ Written by the lead researcher, with the error analyst's interpretation folded i
 
 ---
 
-## 2026-06-27 — Day 0: harness bring-up + first baseline
+## 2026-06-27 — Day 0: post-training pipeline bring-up (modern arch + base + SFT masking)
 
-- **Goal:** Stand up the daily-research harness and establish a reproducible baseline to
-  measure everything against.
-- **Environment reality (important):** This box is **CPU-only** (4 cores, 15 GB) and
-  **egress-restricted** — `huggingface.co` and `download.pytorch.org` are blocked by org
-  policy (403); only PyPI is reachable. So we cannot pull pretrained models or HF datasets
-  here. We pivoted to **training small models from scratch on offline data** (bundled sklearn
-  datasets + locally-generated algorithmic tasks). This still exercises every technique we
-  care about — optimizers, LR schedules, losses, LoRA, quantization, architecture, layers —
-  and is fully reproducible from git, which suits the ephemeral container.
-- **Baseline (`experiments/2026-06-27-baseline`):** a from-scratch **TinyGPT** (104K params,
-  2 layers, d=64, 4 heads) trained to **sort** a length-10 sequence over a 12-token vocab.
-  AdamW, lr 3e-3, cosine schedule, 10% warmup, grad-clip 1.0, 8 epochs, 4k train / 1k eval.
-- **Result:** converges cleanly to **token-acc 0.998 / exact-match 0.983** in **8.3 s** on CPU.
-  Learning curve is textbook: exact-match 0.0 → 0.28 → 0.60 → 0.90 → 0.95 → 0.98 over epochs.
-- **Verdict:** Solid reference point. The task is *learnable but not trivial* (epoch-0
-  exact-match is 0, so there's clear headroom for ablations to move the curve), and 8 s/run
-  means we can do real one-knob-per-day science fast.
-- **Sanity checks done:** smoke config runs in 0.36 s; LoRA-from-scratch and dynamic int8
-  quantization paths both execute and report metrics.
-- **Next (Day 1 / Week 1):** Begin the optimization track. First knob: **learning rate** —
-  push lr from 3e-3 → 1e-2 and see whether the sort task tolerates a more aggressive rate or
-  destabilizes early. Hypothesis: at d=64/2 layers it'll still converge but with a noisier
-  early curve; expected exact-match roughly on par or slightly worse.
+**Reframing (why this looks different from a first sketch).** An initial harness trained
+toy models (an MLP; a TinyGPT on a "sort" task). That teaches optimizer mechanics, not *LLM
+fine-tuning*. We pivoted to the thing actually worth learning: the **post-training stack**
+(SFT → reward modeling → DPO → GRPO) on a **modern** transformer, in a **verifiable** world.
+Grounded in: Karpathy's **nanochat** (the minimal full ChatGPT pipeline — RoPE, RMSNorm,
+ReLU², QK-norm, no-bias, untied embeddings); **TinyStories** (1–35M-param models learn real
+structure from scratch); and CPU-scale **DPO/GRPO** being feasible.
+
+**Environment constraints (unchanged):** CPU-only, and egress-blocked (`huggingface.co` /
+`pytorch.org` → 403). So everything trains from scratch on locally-generated data. We chose a
+**verifiable** task (arithmetic) precisely because the reward is a programmatic check — no
+reward model or human labels needed for the RL signal, and ground-truth SFT/preference data
+is free.
+
+**Architecture.** Rebuilt the model as `NanoLM`, the LLM core recipe shrunk to CPU: **RoPE**
+rotary positions, **RMSNorm** (no learnable params), **ReLU² MLP**, **QK-norm**, **no biases**,
+**untied** embeddings, optional GQA, and a greedy `generate()`. ~0.6M params at default size.
+
+**Base model (`2026-06-27-pretrain-base`).** Next-token pretraining on 2-digit addition.
+Key trick: emit the answer **least-significant-digit-first** — carries propagate left-to-right
+that way, which a tiny causal model can actually learn. Result: a textbook **grokking** curve,
+exact-match 0.06 → 0.33 → **0.89** → **0.97** over epochs 3–7, **~24 s** on CPU. Without the
+reversal, the same model was stuck near 3% — a clean lesson in input/output formatting.
+
+**Day-0 experiment — prompt-loss masking (`sft-masked` vs `sft-unmasked`).** One knob:
+`train.mask_prompt`. Identical otherwise (same data/seed/budget, 10 epochs).
+
+| run          | exact-match (final) | groks by | eval-loss |
+|--------------|---------------------|----------|-----------|
+| sft-masked   | **1.000**           | epoch 5  | **0.004** |
+| sft-unmasked | 0.976               | epoch 7  | 0.946     |
+
+- EM trajectories — masked: `… 0.44, 0.87, 0.995, 1.0 …`; unmasked: `… 0.04, 0.26, 0.81, 0.93, 0.98`.
+- **Verdict / mechanism:** masking the prompt focuses all gradient on the answer, so the model
+  groks ~2 epochs sooner and reaches 100%. The deeper lesson is the **loss**: unmasked SFT
+  loss floors at ~0.95 because it keeps trying to predict the *random* prompt digits (irreducible
+  entropy ≈ log 10 per digit) — so you **cannot read task success off an unmasked SFT loss**.
+  This is exactly why real SFT masks the prompt.
+- **Signal vs noise:** the EM gap at the budget end is small (1.0 vs 0.976), but the
+  *convergence-speed* and *loss-interpretability* gaps are large and unambiguous.
+
+**Harness state:** `pretrain`, `sft`, and `supervised` (classification/legacy seq) stages work.
+`rm` / `dpo` / `grpo` are stubbed with informative errors — they're the next scheduled days.
+
+**Next (Day 1):** chat templating / explicit role tokens — does formatting consistency improve
+generalization to held-out prompts? Then harder arithmetic (3-digit) to open headroom for RL.
 
 ### How to reproduce
 ```bash
 python3 -m pip install -r requirements.txt
-python3 -m harness.train experiments/2026-06-27-baseline/config.yaml
+python3 -m harness.train experiments/2026-06-27-pretrain-base/config.yaml
+python3 -m harness.train experiments/2026-06-27-sft-masked/config.yaml
+python3 -m harness.train experiments/2026-06-27-sft-unmasked/config.yaml
 ```

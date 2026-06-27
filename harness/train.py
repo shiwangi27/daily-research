@@ -1,10 +1,17 @@
-"""Config-driven training/eval loop (modality-agnostic).
+"""Config-driven training/eval loop, organized by post-training `stage`.
 
 Usage:
     python3 -m harness.train experiments/<dir>/config.yaml
 
-Writes result.json next to the config. Plain PyTorch loop so optimizer, scheduler,
-gradient clipping, and loss are all explicit and easy to swap one knob at a time.
+Stages:
+    pretrain    next-token LM on the raw corpus (the base model)
+    sft         instruction tuning; prompt-loss masking is the key knob (train.mask_prompt)
+    supervised  classification / legacy copy-sort sequence tasks
+    rm/dpo/grpo  scheduled — informative stub until implemented on their day
+
+Chaining: set `init_from: experiments/<dir>` to warm-start from that experiment's saved
+`model.pt`. Each run saves its own `model.pt` (gitignored) so a later stage can build on it.
+Writes result.json next to the config. Plain PyTorch so every knob stays explicit.
 """
 from __future__ import annotations
 
@@ -22,26 +29,7 @@ from .model import build_model, count_params
 from .utils import Timer, capture_env, config_hash, set_seed
 
 
-def _build_optimizer(model, tc):
-    params = [p for p in model.parameters() if p.requires_grad]
-    name = tc.optimizer.lower()
-    if name == "adamw":
-        return torch.optim.AdamW(params, lr=tc.lr, weight_decay=tc.weight_decay)
-    if name == "sgd":
-        return torch.optim.SGD(params, lr=tc.lr, momentum=tc.momentum, weight_decay=tc.weight_decay)
-    if name == "adafactor":
-        try:
-            from transformers.optimization import Adafactor
-        except ImportError as exc:  # optional dependency
-            raise SystemExit(
-                "optimizer 'adafactor' needs transformers: python3 -m pip install transformers"
-            ) from exc
-        return Adafactor(params, lr=tc.lr, scale_parameter=False, relative_step=False, warmup_init=False)
-    if name == "lion":
-        return _Lion(params, lr=tc.lr, weight_decay=tc.weight_decay)
-    raise ValueError(f"Unknown optimizer '{tc.optimizer}'")
-
-
+# --------------------------------------------------------------------------- optim
 class _Lion(torch.optim.Optimizer):
     """Minimal Lion optimizer (Chen et al., 2023): update is the sign of an interpolated
     momentum. Included so we can A/B it against AdamW with no extra dependency."""
@@ -69,6 +57,24 @@ class _Lion(torch.optim.Optimizer):
         return loss
 
 
+def _build_optimizer(model, tc):
+    params = [p for p in model.parameters() if p.requires_grad]
+    name = tc.optimizer.lower()
+    if name == "adamw":
+        return torch.optim.AdamW(params, lr=tc.lr, weight_decay=tc.weight_decay)
+    if name == "sgd":
+        return torch.optim.SGD(params, lr=tc.lr, momentum=tc.momentum, weight_decay=tc.weight_decay)
+    if name == "adafactor":
+        try:
+            from transformers.optimization import Adafactor
+        except ImportError as exc:
+            raise SystemExit("optimizer 'adafactor' needs: python3 -m pip install transformers") from exc
+        return Adafactor(params, lr=tc.lr, scale_parameter=False, relative_step=False, warmup_init=False)
+    if name == "lion":
+        return _Lion(params, lr=tc.lr, weight_decay=tc.weight_decay)
+    raise ValueError(f"Unknown optimizer '{tc.optimizer}'")
+
+
 def _build_scheduler(optimizer, tc, total_steps):
     warmup = int(tc.warmup_ratio * total_steps)
     if tc.scheduler == "none":
@@ -87,49 +93,95 @@ def _build_scheduler(optimizer, tc, total_steps):
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 
-def evaluate(model, task: Task, cfg: ExperimentConfig, gen) -> dict:
-    model.eval()
-    losses, all_logits, all_targets, all_preds = [], [], [], []
+# --------------------------------------------------------------------------- eval
+def _eval_loss(model, task, cfg, gen) -> float:
+    losses = []
     with torch.no_grad():
         for xb, yb in task.batches("eval", cfg.train.batch_size, gen):
-            logits = model(xb)
-            losses.append(compute_loss(logits, yb, cfg.train).item())
-            if task.kind == "classification":
-                all_preds.append(logits.argmax(-1))
-                all_targets.append(yb)
-            else:
-                all_logits.append(logits)
-                all_targets.append(yb)
-    metrics = {"eval_loss": round(sum(losses) / len(losses), 4)}
+            losses.append(compute_loss(model(xb), yb, cfg.train).item())
+    return round(sum(losses) / len(losses), 4)
+
+
+def _arith_exact_match(model, task: Task, batch_size: int) -> dict:
+    """Greedy-decode answers from the eval prompts and check them programmatically."""
+    tok = task.tokenizer
+    correct, total = 0, len(task.eval_answers)
+    P = task.eval_prompts.shape[1]
+    with torch.no_grad():
+        for start in range(0, total, batch_size):
+            prompts = task.eval_prompts[start : start + batch_size]
+            out = model.generate(prompts, max_new_tokens=task.answer_len, eos_id=tok.eos_id)
+            gen_tokens = out[:, P:].tolist()
+            for row, true_val in zip(gen_tokens, task.eval_answers[start : start + batch_size]):
+                cut = row.index(tok.eos_id) if tok.eos_id in row else len(row)
+                text = tok.decode(row[:cut])
+                if task.reverse_answer:
+                    text = text[::-1]
+                correct += int(text.isdigit() and int(text) == true_val)
+    return {"exact_match": round(correct / total, 4)}
+
+
+def evaluate(model, task: Task, cfg, gen) -> dict:
+    model.eval()
+    metrics = {"eval_loss": _eval_loss(model, task, cfg, gen)}
     if task.kind == "classification":
-        metrics.update(
-            classification_metrics(torch.cat(all_preds), torch.cat(all_targets), task.num_classes)
-        )
-    else:
-        metrics.update(
-            sequence_metrics(torch.cat(all_logits), torch.cat(all_targets), task.answer_start)
-        )
+        preds, labels = [], []
+        with torch.no_grad():
+            for xb, yb in task.batches("eval", cfg.train.batch_size, gen):
+                preds.append(model(xb).argmax(-1)); labels.append(yb)
+        metrics.update(classification_metrics(torch.cat(preds), torch.cat(labels), task.num_classes))
+    elif task.kind == "sequence":
+        with torch.no_grad():
+            logits = torch.cat([model(xb) for xb, _ in task.batches("eval", cfg.train.batch_size, gen)])
+        metrics.update(sequence_metrics(logits, task.eval_y, task.answer_start))
+    elif task.kind == "lm":
+        metrics.update(_arith_exact_match(model, task, cfg.train.batch_size))
     return metrics
 
 
+# --------------------------------------------------------------------------- build
+def _make_model(cfg: ExperimentConfig, task: Task):
+    if task.kind == "lm":
+        model = build_model(cfg.model, vocab=task.vocab_size)
+    elif task.kind == "sequence":
+        model = build_model(cfg.model, vocab=cfg.data.vocab + 2)
+    else:
+        model = build_model(cfg.model, input_dim=task.input_dim, num_classes=task.num_classes)
+
+    if cfg.init_from:
+        ckpt = cfg.init_from
+        if os.path.isdir(ckpt):
+            ckpt = os.path.join(ckpt, "model.pt")
+        state = torch.load(ckpt, map_location="cpu")
+        missing, unexpected = model.load_state_dict(state, strict=False)
+        print(f"init_from {ckpt}  (missing={len(missing)} unexpected={len(unexpected)})")
+    return model
+
+
+# --------------------------------------------------------------------------- main
 def train(config_path: str) -> dict:
     cfg = load_config(config_path)
     if cfg.needs_gpu and not torch.cuda.is_available():
         raise SystemExit(f"[{cfg.name}] flagged needs_gpu but no GPU here. Run externally.")
+    if cfg.stage in {"rm", "dpo", "grpo"}:
+        raise SystemExit(
+            f"stage '{cfg.stage}' is scheduled but not yet implemented — it's an upcoming "
+            f"one-knob day. See schedule.md. (pretrain/sft/supervised work today.)"
+        )
 
     set_seed(cfg.seed)
     torch.set_num_threads(os.cpu_count() or 4)
     gen = torch.Generator().manual_seed(cfg.seed)
 
-    print(f"== {cfg.name} ==  {cfg.description}")
-    task = load_task(cfg.data)
-    model = build_model(cfg.model, task)
+    print(f"== {cfg.name} == [{cfg.stage}]  {cfg.description}")
+    stage_for_data = cfg.stage if cfg.stage in {"pretrain", "sft"} else "supervised"
+    task = load_task(cfg.data, stage=stage_for_data, mask_prompt=cfg.train.mask_prompt)
+    model = _make_model(cfg, task)
     params = count_params(model)
-    print(f"task={task.name}({task.kind})  params: {params['trainable']:,} trainable / {params['total']:,} total")
+    print(f"task={task.name}({task.kind})  params: {params['trainable']:,} / {params['total']:,}")
 
     tc = cfg.train
-    n_train = task.train_x.shape[0]
-    steps_per_epoch = math.ceil(n_train / tc.batch_size)
+    steps_per_epoch = math.ceil(task.train_x.shape[0] / tc.batch_size)
     optimizer = _build_optimizer(model, tc)
     scheduler = _build_scheduler(optimizer, tc, steps_per_epoch * tc.epochs)
 
@@ -139,8 +191,7 @@ def train(config_path: str) -> dict:
             model.train()
             running = 0.0
             for xb, yb in task.batches("train", tc.batch_size, gen):
-                logits = model(xb)
-                loss = compute_loss(logits, yb, tc)
+                loss = compute_loss(model(xb), yb, tc)
                 optimizer.zero_grad()
                 loss.backward()
                 if tc.grad_clip:
@@ -158,29 +209,23 @@ def train(config_path: str) -> dict:
             print(f"epoch {epoch}: {entry}")
 
     final = dict(history[-1])
-
     if cfg.model.quantize_dynamic:
         qmodel = torch.quantization.quantize_dynamic(model, {torch.nn.Linear}, dtype=torch.qint8)
         final["quantized_int8"] = evaluate(qmodel, task, cfg, gen)
         print(f"quantized int8 eval: {final['quantized_int8']}")
 
+    out_dir = os.path.dirname(config_path)
+    torch.save(model.state_dict(), os.path.join(out_dir, "model.pt"))  # gitignored; for chaining
     result = {
-        "name": cfg.name,
-        "hypothesis": cfg.hypothesis,
-        "compare_to": cfg.compare_to,
-        "config": cfg.to_dict(),
-        "config_hash": config_hash(cfg.to_dict()),
-        "params": params,
-        "wall_seconds": timer.seconds,
-        "history": history,
-        "final": final,
+        "name": cfg.name, "stage": cfg.stage, "hypothesis": cfg.hypothesis,
+        "compare_to": cfg.compare_to, "config": cfg.to_dict(),
+        "config_hash": config_hash(cfg.to_dict()), "params": params,
+        "wall_seconds": timer.seconds, "history": history, "final": final,
         "env": capture_env(),
     }
-
-    out_path = os.path.join(os.path.dirname(config_path), "result.json")
-    with open(out_path, "w") as fh:
+    with open(os.path.join(out_dir, "result.json"), "w") as fh:
         json.dump(result, fh, indent=2)
-    print(f"wrote {out_path}  ({timer.seconds}s)")
+    print(f"wrote {out_dir}/result.json  ({timer.seconds}s)")
     return result
 
 

@@ -1,0 +1,156 @@
+{
+  "name": "sft-unmasked",
+  "stage": "sft",
+  "hypothesis": "The one knob is prompt-loss masking. Without it the model spends capacity predicting unpredictable prompt digits; expect markedly lower answer exact-match at the same budget.",
+  "compare_to": "2026-06-27-sft-masked",
+  "config": {
+    "name": "sft-unmasked",
+    "description": "SFT baseline \u2014 instruction-tune NanoLM on the arithmetic chat format with prompt-loss masking OFF (loss on every token, including the random prompt digits).",
+    "hypothesis": "The one knob is prompt-loss masking. Without it the model spends capacity predicting unpredictable prompt digits; expect markedly lower answer exact-match at the same budget.",
+    "stage": "sft",
+    "init_from": null,
+    "seed": 1234,
+    "needs_gpu": false,
+    "compare_to": "2026-06-27-sft-masked",
+    "data": {
+      "task": "arith",
+      "max_train": 6000,
+      "max_eval": 1000,
+      "seed": 0,
+      "op": "add",
+      "max_digits": 2,
+      "reverse_answer": true,
+      "n_features": 40,
+      "n_informative": 10,
+      "n_classes": 4,
+      "seq_len": 10,
+      "vocab": 12
+    },
+    "model": {
+      "arch": "nanolm",
+      "d_model": 128,
+      "n_heads": 4,
+      "n_kv_heads": null,
+      "n_layers": 3,
+      "block_size": 16,
+      "dropout": 0.0,
+      "hidden": 128,
+      "depth": 2,
+      "lora": {
+        "enabled": false,
+        "r": 8,
+        "alpha": 16,
+        "dropout": 0.0,
+        "target_modules": [
+          "attn_q",
+          "attn_v"
+        ]
+      },
+      "freeze": [],
+      "quantize_dynamic": false
+    },
+    "train": {
+      "epochs": 10,
+      "batch_size": 64,
+      "loss": "cross_entropy",
+      "label_smoothing": 0.0,
+      "focal_gamma": 2.0,
+      "optimizer": "adamw",
+      "lr": 0.003,
+      "momentum": 0.9,
+      "weight_decay": 0.01,
+      "scheduler": "cosine",
+      "warmup_ratio": 0.1,
+      "grad_clip": 1.0,
+      "eval_every_epoch": true,
+      "mask_prompt": false,
+      "dpo_beta": 0.1,
+      "grpo_group": 8,
+      "grpo_kl": 0.0,
+      "sample_temperature": 1.0
+    }
+  },
+  "config_hash": "3a30b89746e6",
+  "params": {
+    "total": 593920,
+    "trainable": 593920
+  },
+  "wall_seconds": 34.3,
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": 1.7501,
+      "eval_loss": 1.4042,
+      "exact_match": 0.007
+    },
+    {
+      "epoch": 1,
+      "train_loss": 1.4066,
+      "eval_loss": 1.3863,
+      "exact_match": 0.007
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.3884,
+      "eval_loss": 1.3946,
+      "exact_match": 0.011
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.3843,
+      "eval_loss": 1.3955,
+      "exact_match": 0.013
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.355,
+      "eval_loss": 1.3166,
+      "exact_match": 0.042
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.2447,
+      "eval_loss": 1.1702,
+      "exact_match": 0.256
+    },
+    {
+      "epoch": 6,
+      "train_loss": 1.0687,
+      "eval_loss": 1.0023,
+      "exact_match": 0.814
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.9747,
+      "eval_loss": 0.9556,
+      "exact_match": 0.931
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.9498,
+      "eval_loss": 0.9479,
+      "exact_match": 0.964
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.9455,
+      "eval_loss": 0.9464,
+      "exact_match": 0.976
+    }
+  ],
+  "final": {
+    "epoch": 9,
+    "train_loss": 0.9455,
+    "eval_loss": 0.9464,
+    "exact_match": 0.976
+  },
+  "env": {
+    "python": "3.11.15",
+    "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+    "cpu_count": 4,
+    "git_sha": "3bc83a7",
+    "torch": "2.12.1+cu130",
+    "cuda_available": false,
+    "num_threads": 4
+  }
+}
