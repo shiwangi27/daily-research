@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Scratch / throwaway analysis
+scratch/
+*.tmp
+
+# HuggingFace caches & large artifacts (datasets/models are re-downloaded, not committed)
+.cache/
+hf_cache/
+*.bin
+*.safetensors
+*.pt
+*.onnx
+
+# Keep small checkpoints only if explicitly added with `git add -f`
+checkpoints/

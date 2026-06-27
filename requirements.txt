@@ -1,0 +1,17 @@
+# daily-research dependencies
+#
+# This environment is CPU-only and egress-restricted (huggingface.co and pytorch.org are
+# blocked by policy; only PyPI is reachable). So everything trains from scratch on offline
+# data — no model/dataset downloads. Install with the interpreter you actually run:
+#
+#     python3 -m pip install -r requirements.txt
+#
+# (this box has a second pip bound to a different python; `python3 -m pip` avoids that trap.)
+
+torch>=2.2          # CPU works; the default PyPI wheel may be a CUDA build that falls back to CPU
+numpy>=1.24
+scikit-learn>=1.4   # bundled datasets (digits/wine/breast_cancer) — no download needed
+PyYAML>=6.0
+
+# Optional: only needed if an experiment selects optimizer: adafactor.
+# transformers>=4.40

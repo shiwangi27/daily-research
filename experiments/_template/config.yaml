@@ -1,0 +1,40 @@
+# Template / smoke-test config. Copy this folder (or the current baseline) to start a day.
+# Change EXACTLY ONE knob versus your baseline, then set name / hypothesis / compare_to.
+# This config is deliberately tiny so it runs in a few seconds:
+#   python3 -m harness.train experiments/_template/config.yaml
+name: template-smoke
+description: Minimal fast run to verify the harness end-to-end (tiny GPT on the copy task).
+hypothesis: The harness runs and writes a result.json. Not a real experiment.
+seed: 1234
+needs_gpu: false
+compare_to: null
+
+data:
+  task: copy
+  max_train: 800
+  max_eval: 200
+  seq_len: 6
+  vocab: 8
+  seed: 0
+
+model:
+  arch: tiny_gpt
+  d_model: 32
+  n_heads: 2
+  n_layers: 2
+  block_size: 16
+  dropout: 0.0
+  quantize_dynamic: false
+  lora:
+    enabled: false
+
+train:
+  epochs: 3
+  batch_size: 64
+  loss: cross_entropy
+  optimizer: adamw
+  lr: 3.0e-3
+  weight_decay: 0.01
+  scheduler: cosine
+  warmup_ratio: 0.1
+  grad_clip: 1.0
