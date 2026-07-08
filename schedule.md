@@ -25,7 +25,10 @@ what you learn about the lever.
 - [x] **Day 0 — Pipeline bring-up + base model + prompt-loss masking.** Masked vs unmasked
       SFT: masking groks ~2 epochs sooner and makes the loss actually readable. (done 06-27)
 - [ ] **Day 1 — Chat template / special tokens.** Add explicit role markers; does formatting
-      consistency change generalization to held-out prompts?
+      consistency change generalization to held-out prompts? Planned in
+      `research_plan_2026-07-08.md`: one new `data.explicit_turn_token` knob (a dedicated
+      `<assistant>` special token at the prompt/answer boundary) vs `sft-masked`, where the
+      boundary today is only the plain `"="` char. Not yet run.
 - [ ] **Day 2 — SFT epochs & overfitting.** 1 vs 3 vs 10 epochs — where does a tiny SFT set
       start to memorize? (LLMs overfit SFT fast.)
 - [ ] **Day 3 — Harder task = headroom.** 3-digit addition (or add+sub mix). Re-establish the
