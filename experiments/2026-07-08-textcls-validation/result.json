@@ -1,0 +1,162 @@
+{
+  "name": "textcls-validation",
+  "stage": "classify",
+  "hypothesis": "With a 6:1 class imbalance, plain cross-entropy gets decent accuracy but poor macro-F1 (minorities missed) \u2014 motivating the class-weighting / focal experiments we'll run on the real dataset.",
+  "compare_to": null,
+  "config": {
+    "name": "textcls-validation",
+    "description": "Offline validation of the new text-classification capability (NanoLM classifier head + word tokenizer) on a synthetic imbalanced task. Proxy for the real benchmark; no egress needed.",
+    "hypothesis": "With a 6:1 class imbalance, plain cross-entropy gets decent accuracy but poor macro-F1 (minorities missed) \u2014 motivating the class-weighting / focal experiments we'll run on the real dataset.",
+    "stage": "classify",
+    "init_from": null,
+    "seed": 1234,
+    "needs_gpu": false,
+    "compare_to": null,
+    "data": {
+      "task": "textcls",
+      "max_train": 3000,
+      "max_eval": 800,
+      "seed": 0,
+      "op": "add",
+      "max_digits": 2,
+      "reverse_answer": true,
+      "source": "synth",
+      "hf_repo": null,
+      "hf_config": null,
+      "text_field": "text",
+      "label_field": "label",
+      "max_len": 32,
+      "max_vocab": 300,
+      "imbalance": 6.0,
+      "n_features": 40,
+      "n_informative": 10,
+      "n_classes": 4,
+      "seq_len": 10,
+      "vocab": 12
+    },
+    "model": {
+      "arch": "nanolm",
+      "d_model": 64,
+      "n_heads": 4,
+      "n_kv_heads": null,
+      "n_layers": 2,
+      "block_size": 32,
+      "dropout": 0.0,
+      "hidden": 128,
+      "depth": 2,
+      "lora": {
+        "enabled": false,
+        "r": 8,
+        "alpha": 16,
+        "dropout": 0.0,
+        "target_modules": [
+          "attn_q",
+          "attn_v"
+        ]
+      },
+      "freeze": [],
+      "quantize_dynamic": false
+    },
+    "train": {
+      "epochs": 8,
+      "batch_size": 64,
+      "loss": "cross_entropy",
+      "label_smoothing": 0.0,
+      "focal_gamma": 2.0,
+      "optimizer": "adamw",
+      "lr": 0.003,
+      "momentum": 0.9,
+      "weight_decay": 0.01,
+      "scheduler": "cosine",
+      "warmup_ratio": 0.1,
+      "grad_clip": 1.0,
+      "eval_every_epoch": true,
+      "class_weight": "none",
+      "mask_prompt": true,
+      "dpo_beta": 0.1,
+      "grpo_group": 8,
+      "grpo_kl": 0.0,
+      "sample_temperature": 1.0
+    }
+  },
+  "config_hash": "819c6dc53069",
+  "params": {
+    "total": 101952,
+    "trainable": 101952
+  },
+  "wall_seconds": 9.9,
+  "history": [
+    {
+      "epoch": 0,
+      "train_loss": 0.6706,
+      "eval_loss": 0.2791,
+      "accuracy": 0.93,
+      "macro_f1": 0.4457
+    },
+    {
+      "epoch": 1,
+      "train_loss": 0.2557,
+      "eval_loss": 0.2005,
+      "accuracy": 0.9175,
+      "macro_f1": 0.4345
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.2054,
+      "eval_loss": 0.1981,
+      "accuracy": 0.9125,
+      "macro_f1": 0.4242
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.1708,
+      "eval_loss": 0.2411,
+      "accuracy": 0.8938,
+      "macro_f1": 0.4858
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.1312,
+      "eval_loss": 0.2717,
+      "accuracy": 0.9075,
+      "macro_f1": 0.4611
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.0787,
+      "eval_loss": 0.3567,
+      "accuracy": 0.8888,
+      "macro_f1": 0.4295
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.0512,
+      "eval_loss": 0.3605,
+      "accuracy": 0.8862,
+      "macro_f1": 0.4608
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.0403,
+      "eval_loss": 0.3719,
+      "accuracy": 0.8875,
+      "macro_f1": 0.4628
+    }
+  ],
+  "final": {
+    "epoch": 7,
+    "train_loss": 0.0403,
+    "eval_loss": 0.3719,
+    "accuracy": 0.8875,
+    "macro_f1": 0.4628
+  },
+  "env": {
+    "python": "3.11.15",
+    "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+    "cpu_count": 4,
+    "git_sha": "48ead43",
+    "torch": "2.12.1+cu130",
+    "cuda_available": false,
+    "num_threads": 4
+  }
+}

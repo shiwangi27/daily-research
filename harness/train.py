@@ -124,7 +124,7 @@ def _arith_exact_match(model, task: Task, batch_size: int) -> dict:
 def evaluate(model, task: Task, cfg, gen) -> dict:
     model.eval()
     metrics = {"eval_loss": _eval_loss(model, task, cfg, gen)}
-    if task.kind == "classification":
+    if task.kind in ("classification", "textcls"):
         preds, labels = [], []
         with torch.no_grad():
             for xb, yb in task.batches("eval", cfg.train.batch_size, gen):
@@ -143,6 +143,9 @@ def evaluate(model, task: Task, cfg, gen) -> dict:
 def _make_model(cfg: ExperimentConfig, task: Task):
     if task.kind == "lm":
         model = build_model(cfg.model, vocab=task.vocab_size)
+    elif task.kind == "textcls":
+        model = build_model(cfg.model, vocab=task.vocab_size, num_classes=task.num_classes,
+                            pad_id=task.tokenizer.pad_id, classifier=True)
     elif task.kind == "sequence":
         model = build_model(cfg.model, vocab=cfg.data.vocab + 2)
     else:
@@ -185,13 +188,20 @@ def train(config_path: str) -> dict:
     optimizer = _build_optimizer(model, tc)
     scheduler = _build_scheduler(optimizer, tc, steps_per_epoch * tc.epochs)
 
+    # Optional inverse-frequency class weights for imbalanced classification (training loss only).
+    weight = None
+    if task.kind == "textcls" and tc.class_weight == "balanced":
+        counts = torch.bincount(task.train_y, minlength=task.num_classes).float()
+        weight = counts.sum() / (len(counts) * counts.clamp(min=1))
+        print(f"class counts {counts.int().tolist()} -> weights {[round(w, 2) for w in weight.tolist()]}")
+
     history = []
     with Timer() as timer:
         for epoch in range(tc.epochs):
             model.train()
             running = 0.0
             for xb, yb in task.batches("train", tc.batch_size, gen):
-                loss = compute_loss(model(xb), yb, tc)
+                loss = compute_loss(model(xb), yb, tc, weight=weight)
                 optimizer.zero_grad()
                 loss.backward()
                 if tc.grad_clip:

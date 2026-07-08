@@ -172,6 +172,31 @@ class NanoLM(nn.Module):
         return idx
 
 
+class NanoLMClassifier(nn.Module):
+    """NanoLM trunk + a classification head over the last real (non-pad) token's hidden state.
+
+    Causal attention means the last token has attended to the whole sequence, so its state is a
+    natural sentence summary (the GPT-style approach to sequence classification)."""
+
+    def __init__(self, vocab, num_classes, d_model, n_heads, n_kv_heads, n_layers, block_size, dropout, pad_id):
+        super().__init__()
+        self.pad_id = pad_id
+        self.wte = nn.Embedding(vocab, d_model)
+        self.blocks = nn.ModuleList(
+            [Block(d_model, n_heads, n_kv_heads, dropout) for _ in range(n_layers)]
+        )
+        self.head = nn.Linear(d_model, num_classes, bias=False)
+
+    def forward(self, idx):
+        x = self.wte(idx)
+        for block in self.blocks:
+            x = block(x)
+        x = rms_norm(x)
+        last = (idx != self.pad_id).sum(1).clamp(min=1) - 1     # index of last real token
+        pooled = x[torch.arange(x.shape[0]), last]
+        return self.head(pooled)
+
+
 # --------------------------------------------------------------------------- MLP (side-track)
 class MLP(nn.Module):
     def __init__(self, in_dim, hidden, depth, num_classes, dropout):
@@ -210,10 +235,17 @@ class RewardModel(nn.Module):
         return self.value(gathered).squeeze(-1)            # (B,)
 
 
-def build_model(cfg: ModelConfig, *, vocab=None, input_dim=None, num_classes=None) -> nn.Module:
-    if cfg.arch in ("nanolm", "tiny_gpt"):       # tiny_gpt kept as an alias
+def build_model(cfg: ModelConfig, *, vocab=None, input_dim=None, num_classes=None,
+                pad_id=None, classifier=False) -> nn.Module:
+    if classifier:                               # NanoLM trunk + classification head
         n_kv = cfg.n_kv_heads or cfg.n_heads
-        model: nn.Module = NanoLM(
+        model: nn.Module = NanoLMClassifier(
+            vocab, num_classes, cfg.d_model, cfg.n_heads, n_kv, cfg.n_layers,
+            cfg.block_size, cfg.dropout, pad_id,
+        )
+    elif cfg.arch in ("nanolm", "tiny_gpt"):     # tiny_gpt kept as an alias
+        n_kv = cfg.n_kv_heads or cfg.n_heads
+        model = NanoLM(
             vocab, cfg.d_model, cfg.n_heads, n_kv, cfg.n_layers, cfg.block_size, cfg.dropout
         )
     elif cfg.arch == "mlp":

@@ -20,6 +20,7 @@ import yaml
 @dataclass
 class DataConfig:
     # task: the model's "world".
+    #   textcls                     -> real-world text classification (HF dataset or synthetic)
     #   arith                       -> verifiable toy reasoning (a OP b = c), programmatic reward
     #   copy | sort                 -> simple sequence tasks (legacy sanity checks)
     #   digits|wine|breast_cancer|synth_cls -> vector classification (fast optimization side-track)
@@ -31,7 +32,16 @@ class DataConfig:
     op: str = "add"                 # add | sub
     max_digits: int = 2             # operands drawn in [0, 10**max_digits)
     reverse_answer: bool = True     # emit answer least-significant-digit first (helps carries)
-    # synthetic classification params (task == synth_cls)
+    # text-classification params (task == textcls)
+    source: str = "synth"           # "synth" (offline) | "hf" (HuggingFace dataset)
+    hf_repo: Optional[str] = None   # e.g. "takala/financial_phrasebank"
+    hf_config: Optional[str] = None # e.g. "sentences_allagree"
+    text_field: str = "text"
+    label_field: str = "label"
+    max_len: int = 48               # token truncation length
+    max_vocab: int = 5000           # word-tokenizer vocabulary cap
+    imbalance: float = 6.0          # synth only: class-frequency skew (majority:minority)
+    # synthetic vector-classification params (task == synth_cls)
     n_features: int = 40
     n_informative: int = 10
     n_classes: int = 4
@@ -84,6 +94,8 @@ class TrainConfig:
     warmup_ratio: float = 0.1
     grad_clip: float = 1.0
     eval_every_epoch: bool = True
+    # --- classification ---
+    class_weight: str = "none"      # none | balanced (inverse-frequency, for imbalanced sets)
     # --- SFT ---
     mask_prompt: bool = True        # mask loss on prompt tokens (the key SFT knob)
     # --- DPO (implemented on a scheduled day) ---
@@ -100,12 +112,13 @@ class ExperimentConfig:
     description: str = ""
     hypothesis: str = ""
     # stage: which part of the pipeline this experiment runs.
+    #   classify -> real-world text classification (chase a benchmark)
     #   pretrain -> next-token LM on raw corpus
     #   sft      -> instruction tuning with prompt-loss masking
     #   rm       -> reward model (Bradley-Terry)         [scheduled]
     #   dpo      -> direct preference optimization        [scheduled]
     #   grpo     -> RL with verifiable reward             [scheduled]
-    #   supervised -> classification / legacy seq tasks
+    #   supervised -> vector classification / legacy seq tasks
     stage: str = "pretrain"
     init_from: Optional[str] = None  # path to a base checkpoint (e.g. a pretrain/sft result dir)
     seed: int = 1234

@@ -19,7 +19,38 @@ this.
 The point of a daily ablation is intuition for the *mechanism*. Numbers are secondary to
 what you learn about the lever.
 
+**Two active tracks:** (A) the **real-world benchmark chase** (current focus — chase a public
+leaderboard with a from-scratch tiny model) and (B) the **post-training stack** on arithmetic
+(below). Each day advances one track by one knob.
+
 ---
+
+## Track A — Real-world benchmark chase (CURRENT FOCUS)
+
+Fine-tune a from-scratch `NanoLM` classifier on a real domain dataset and see how far behind
+the leaderboard we are, then close the gap one knob at a time. **Target: Financial PhraseBank**
+(3-class financial-news sentiment; FinBERT ≈ **0.97 acc / 0.95 F1** on the all-agree subset).
+Requires an HF-enabled session (`huggingface.co` allow-listed).
+
+- [x] **Add text-classification to the harness** — `NanoLMClassifier`, `WordTokenizer`,
+      `stage: classify`, class-weighting + focal, macro-F1. Validated offline on a synthetic
+      imbalanced task (weighting: +0.10 macro-F1). (done 2026-07-08)
+- [ ] **FPB baseline** — run `2026-07-08-fpb-baseline`; record acc + macro-F1 vs FinBERT. The gap.
+- [ ] **Tokenizer** — word-level vs a trained BPE (add BPE to the harness); effect on a tiny model.
+- [ ] **Class imbalance** — `class_weight: balanced` vs focal vs label smoothing on macro-F1.
+- [ ] **Capacity** — depth/width sweep; where does more capacity stop helping without pretraining?
+- [ ] **Regularization** — dropout / weight decay against the small-data overfitting.
+- [ ] **LoRA** — adapters vs full fine-tuning at equal budget.
+- [ ] **Reality check** — a real *pretrained* small encoder as an upper-bound reference (needs egress);
+      quantify how much of the gap is "from scratch vs pretrained."
+- [ ] Synthesis: our best from-scratch number vs the leaderboard, and what moved it most.
+
+Backlog datasets for this track: Twitter Financial Sentiment (bigger, parquet-native),
+LexGLUE LEDGAR / Overruling (legal), for a domain-transfer comparison later.
+
+---
+
+## Track B — Post-training stack on arithmetic
 
 ## Week 1 — SFT mechanics (the stuff people get wrong)
 - [x] **Day 0 — Pipeline bring-up + base model + prompt-loss masking.** Masked vs unmasked

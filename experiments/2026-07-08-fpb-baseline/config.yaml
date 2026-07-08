@@ -1,0 +1,22 @@
+name: fpb-baseline
+stage: classify
+description: FROM-SCRATCH NanoLM on Financial PhraseBank (all-agree subset), 3-class sentiment. First real-world benchmark target. Chase FinBERT (0.97 acc / 0.95 F1 on this subset).
+hypothesis: A ~0.5M-param model trained from scratch (no pretraining) will land well below FinBERT — establish the gap, then close it one knob at a time.
+seed: 1234
+needs_gpu: false
+compare_to: null
+# NOTE: requires huggingface.co egress (Custom network policy). Blocked in the default session.
+data:
+  task: textcls
+  source: hf
+  hf_repo: takala/financial_phrasebank
+  hf_config: sentences_allagree
+  text_field: sentence
+  label_field: label
+  max_train: 2000
+  max_eval: 500
+  max_len: 64
+  max_vocab: 5000
+  seed: 0
+model: {arch: nanolm, d_model: 128, n_heads: 4, n_layers: 3, block_size: 64, dropout: 0.1, lora: {enabled: false}}
+train: {epochs: 20, batch_size: 32, optimizer: adamw, lr: 2.0e-3, weight_decay: 0.05, scheduler: cosine, warmup_ratio: 0.1, grad_clip: 1.0, loss: cross_entropy, class_weight: none}

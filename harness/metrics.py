@@ -7,9 +7,10 @@ import torch.nn.functional as F
 IGNORE = -100
 
 
-def compute_loss(logits: torch.Tensor, targets: torch.Tensor, cfg) -> torch.Tensor:
+def compute_loss(logits: torch.Tensor, targets: torch.Tensor, cfg, weight=None) -> torch.Tensor:
     """Loss selected by config. Accepts (B, C) class logits or (B, T, V) sequence logits
-    (flattened to (B*T, V)). Targets == IGNORE are dropped (prompt-loss masking / padding)."""
+    (flattened to (B*T, V)). Targets == IGNORE are dropped (prompt-loss masking / padding).
+    `weight` is an optional per-class tensor for imbalanced classification."""
     if logits.dim() == 3:
         logits = logits.reshape(-1, logits.size(-1))
         targets = targets.reshape(-1)
@@ -20,11 +21,11 @@ def compute_loss(logits: torch.Tensor, targets: torch.Tensor, cfg) -> torch.Tens
 
     kind = cfg.loss
     if kind == "cross_entropy":
-        return F.cross_entropy(logits, targets)
+        return F.cross_entropy(logits, targets, weight=weight)
     if kind == "label_smoothing":
-        return F.cross_entropy(logits, targets, label_smoothing=cfg.label_smoothing)
+        return F.cross_entropy(logits, targets, weight=weight, label_smoothing=cfg.label_smoothing)
     if kind == "focal":
-        ce = F.cross_entropy(logits, targets, reduction="none")
+        ce = F.cross_entropy(logits, targets, weight=weight, reduction="none")
         pt = torch.exp(-ce)
         return ((1 - pt) ** cfg.focal_gamma * ce).mean()
     raise ValueError(f"Unknown loss '{kind}'")

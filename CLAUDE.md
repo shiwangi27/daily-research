@@ -41,8 +41,10 @@ The project is a "nano-nanochat": the LLM **post-training stack** on a modern ti
 (`NanoLM`: RoPE, RMSNorm, ReLU², QK-norm, no-bias, untied embeddings), in a **verifiable**
 world (`arith`). Experiments declare a pipeline `stage`: `pretrain` → `sft` → `rm` → `dpo` →
 `grpo` (rm/dpo/grpo are stubs to be built on their scheduled days). Chain stages with
-`init_from: experiments/<dir>` (loads that run's gitignored `model.pt`). A vector-classification
-side-track (`mlp` on sklearn data, `stage: supervised`) exists for fast pure-optimization days.
+`init_from: experiments/<dir>` (loads that run's gitignored `model.pt`). Separately, `stage:
+classify` fine-tunes a `NanoLMClassifier` on real-world text (`task: textcls`, `source: hf` or
+`synth`) to chase public benchmarks — the current focus (needs `huggingface.co` egress). A
+vector-classification side-track (`mlp` on sklearn data, `stage: supervised`) exists too.
 Adding a new stage/arch/task/optimizer/loss means extending `harness/` (and `harness/config.py`)
 — itself a fine "one thing" for a day.
 

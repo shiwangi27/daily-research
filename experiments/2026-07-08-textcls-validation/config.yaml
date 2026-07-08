@@ -1,0 +1,10 @@
+name: textcls-validation
+stage: classify
+description: Offline validation of the new text-classification capability (NanoLM classifier head + word tokenizer) on a synthetic imbalanced task. Proxy for the real benchmark; no egress needed.
+hypothesis: With a 6:1 class imbalance, plain cross-entropy gets decent accuracy but poor macro-F1 (minorities missed) — motivating the class-weighting / focal experiments we'll run on the real dataset.
+seed: 1234
+needs_gpu: false
+compare_to: null
+data: {task: textcls, source: synth, n_classes: 4, imbalance: 6.0, max_train: 3000, max_eval: 800, max_len: 32, max_vocab: 300, seed: 0}
+model: {arch: nanolm, d_model: 64, n_heads: 4, n_layers: 2, block_size: 32, lora: {enabled: false}}
+train: {epochs: 8, batch_size: 64, optimizer: adamw, lr: 3.0e-3, scheduler: cosine, warmup_ratio: 0.1, loss: cross_entropy, class_weight: none}
