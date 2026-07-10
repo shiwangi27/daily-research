@@ -19,9 +19,30 @@ this.
 The point of a daily ablation is intuition for the *mechanism*. Numbers are secondary to
 what you learn about the lever.
 
-**Two active tracks:** (A) the **real-world benchmark chase** (current focus — chase a public
-leaderboard with a from-scratch tiny model) and (B) the **post-training stack** on arithmetic
-(below). Each day advances one track by one knob.
+**Active tracks:** (A) **real-world benchmark chase**, (B) **post-training stack** on
+arithmetic, and (C) **BabySim developmental RL** (below). Each day advances one track by one knob.
+
+---
+
+## Track C — BabySim: developmental / curriculum RL (visual)
+
+A 2-D baby learns motor milestones week-by-week with policy-gradient RL; output is a comic-book
+artifact you can watch. `babysim/sim.py` (env + REINFORCE) → `babysim/render.py` (comic).
+
+- [x] **v1 env + 5 milestones + comic artifact.** Kinematic body, REINFORCE per skill, all
+      milestones 4–5★. Surfaced two real RL lessons (log-reward for dense gradient; drop the
+      `1/σ` NES step to avoid blow-up). (done 2026-07-10)
+- [ ] **Dynamics, not kinematics** — torques + gravity integration + real falling (the honest
+      version of "balance"). The day the baby can actually topple.
+- [ ] **Curriculum gating** — lock week *k+1* until week *k* clears its success threshold;
+      measure whether the ordering helps vs training each in isolation.
+- [ ] **Algorithm ablation** — REINFORCE vs PPO vs GRPO on the same milestone (sample
+      efficiency, stability). Reuse the harness optimizer/KL machinery.
+- [ ] **Reward shaping** — sparse (success only) vs dense (shaped) — how much shaping is needed?
+- [ ] **Exploration** — entropy bonus / σ schedule and its effect on wobble→mastery speed.
+- [ ] **Transfer & forgetting** — does a policy that can stand learn to walk faster? Does
+      learning to walk break sitting? (continual-learning angle)
+- [ ] Richer visualization — animate full training rollouts, a "growth chart" of reward curves.
 
 ---
 

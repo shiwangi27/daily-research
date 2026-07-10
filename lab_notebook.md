@@ -5,6 +5,44 @@ Written by the lead researcher, with the error analyst's interpretation folded i
 
 ---
 
+## 2026-07-10 — BabySim: a developmental-RL environment + comic-book visualization
+
+**New direction (user's pick of RL problem):** simulate how a baby learns motor skills week
+by week, and *visualize* it comic-book style. This is genuinely a **curriculum / developmental
+RL** setup — skills emerge in a fixed order, each a shaped reward, and "getting better over
+weeks" is literally the learning curve. Fully offline, CPU, seconds to train.
+
+**Environment (`babysim/sim.py`).** A 2-D side-view baby as a pelvis-rooted kinematic chain
+(torso, head, arm, leg). Five milestones, each a task reward: lift head (head height), reach
+(hand→rattle distance), sit (trunk upright + COM balance), pull-to-stand (upright + feet on
+floor + balance), first steps (forward stride + balance). Each is trained by **REINFORCE**
+(Gaussian policy over the controlled joint angles).
+
+**Two RL lessons already surfaced building it:**
+1. **Vanishing gradients from squashed rewards.** `exp(-k·err²)` is ~flat far from the goal →
+   no learning signal. Fix: optimize the **log-reward** (dense quadratic). Reach/sit went from
+   stuck to solved.
+2. **Step-size blow-up.** The textbook NES `1/σ` scaling explodes as σ anneals → the policy
+   slams joints into their limits (grotesque poses). Dropping `1/σ` + flooring σ + modest lr
+   made all five milestones converge (final rewards 0.85–1.00; reach lands exactly on the toy).
+   A clean reminder that RL results are as much optimizer-stability as reward design.
+
+**Visualization (`babysim/render.py` → comic artifact).** Chose a **self-contained comic-book
+HTML page**: a week-by-week panel strip (each panel = the mastered pose, drawn as a cute comic
+baby with badge + star rating) plus an **animated stage** that replays a skill, interpolating
+the training snapshots so you watch exploration wobble anneal into mastery. Format rationale:
+game-like, shareable, theme-aware, no assets. Published as an Artifact.
+
+**Status:** poses reach 4–5★ across all milestones. This is a *kinematic* first cut (policy sets
+joint angles; balance is a COM-over-base reward, not true rigid-body dynamics).
+
+**Next (the real RL curriculum):** make it dynamics-based (torques + gravity integration, real
+falling), add **curriculum gating** (must master week *k* to unlock *k+1*), then run the
+technique ablations as daily experiments: REINFORCE vs PPO vs GRPO, reward shaping (sparse vs
+dense), exploration/entropy, and **skill transfer / catastrophic forgetting** across milestones.
+
+---
+
 ## 2026-07-08 — Day 1: real-world direction + text-classification capability
 
 **Decision.** Pivot the near-term goal from synthetic arithmetic to **real-world domain data
