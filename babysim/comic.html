@@ -178,7 +178,10 @@ function drawBaby(rg,fit,opts){opts=opts||{};const P=rigPoints(rg,fit),s=fit.s;P
     ball(r,s*0.26,PAL.toy,"#fff2c0");ball([r[0]-s*.08,r[1]-s*.08],s*0.06,"#ffffff","#fff");}
   // head — features drawn in a rotated local frame so the face can point up when supine
   const h=P.head,hr=s*0.6;ball(h,hr,PAL.skin,PAL.skinHi);
-  ctx.save();ctx.translate(h[0],h[1]);ctx.rotate(opts.face||0);
+  ctx.save();ctx.translate(h[0],h[1]);
+  // supine: reflect (x,y)->(-y,-x) so the face points UP and the hair sits on the crown
+  // (far from the neck); other poses just rotate.
+  if(opts.supine)ctx.transform(0,-1,-1,0,0,0); else ctx.rotate(opts.face||0);
   ctx.fillStyle=PAL.hair;ctx.beginPath();ctx.arc(0,-hr*0.5,hr*0.72,Math.PI,TAU);ctx.fill();
   ctx.beginPath();ctx.arc(hr*0.12,-hr*0.78,hr*0.26,0,TAU);ctx.fill();
   const ex=hr*0.17,ey=-hr*0.02;
@@ -195,7 +198,7 @@ function paint(rg,opts){const fit=fitter(cv.width,cv.height,46);ctx.imageSmoothi
 // ---------- engine ----------
 let cur=0,raf=null,t0=null;
 const stars=m=>"★".repeat(m.stars)+"☆".repeat(5-m.stars);
-const faceFor=k=>k==="reach"?-1.55:0;  // rotate the face up when supine
+const supineFor=k=>k==="reach";  // lie on the back -> reflect the face to look up
 const nearest=w=>{let b=M[0];M.forEach(m=>{if(Math.abs(m.week-w)<Math.abs(b.week-w))b=m;});return b;};
 function poseAtWeek(w){const A=[{week:1,angles:NEWBORN},...M];if(w<=A[0].week)return NEWBORN;
   for(let i=0;i<A.length-1;i++)if(w>=A[i].week&&w<=A[i+1].week)return lerpAng(A[i].angles,A[i+1].angles,(w-A[i].week)/(A[i+1].week-A[i].week));
@@ -210,9 +213,9 @@ function selectSkill(i){cur=i;t0=null;floorX=0;
   document.getElementById("week").value=M[i].week;label(M[i].week);loop();}
 function loop(){cancelAnimationFrame(raf);t0=null;const m=M[cur];
   setInfo(m.week,m.title,{t:m.success?"Mastered":"Learning",c:m.success?"master":"learn"},stars(m),m.blurb);
-  if(reduce){paint(staticRig(m.angles),{rattle:m.key==="reach",face:faceFor(m.key)});return;}
+  if(reduce){paint(staticRig(m.angles),{rattle:m.key==="reach",supine:supineFor(m.key)});return;}
   const per=2600;(function fr(ts){if(t0===null)t0=ts;const p=((ts-t0)%per)/per;const r=rigOf(m.angles,m.key,p);
-    advScroll(r.scroll);paint(r.rig,{rattle:m.key==="reach",face:faceFor(m.key)});raf=requestAnimationFrame(fr);})(0);}
+    advScroll(r.scroll);paint(r.rig,{rattle:m.key==="reach",supine:supineFor(m.key)});raf=requestAnimationFrame(fr);})(0);}
 function timeline(){const s=[];let prev=NEWBORN,pw=1;M.forEach(m=>{s.push({t:"trans",from:prev,to:m.angles,wf:pw,wt:m.week,dur:900,m});
   s.push({t:"demo",m,dur:2300});prev=m.angles;pw=m.week;});return s;}
 function playAll(){cur=-1;cancelAnimationFrame(raf);t0=null;floorX=0;
@@ -223,7 +226,7 @@ function playAll(){cur=-1;cancelAnimationFrame(raf);t0=null;floorX=0;
     const sg=segs[i],p=e/sg.dur,m=sg.m;
     if(sg.t==="trans"){paint(staticRig(lerpAng(sg.from,sg.to,p)),{});const wk=lerp(sg.wf,sg.wt,p);
       setInfo(wk,"Growing up…",null,"","");document.getElementById("week").value=Math.round(wk);label(Math.round(wk));}
-    else{const r=rigOf(m.angles,m.key,p);advScroll(r.scroll);paint(r.rig,{rattle:m.key==="reach",face:faceFor(m.key)});
+    else{const r=rigOf(m.angles,m.key,p);advScroll(r.scroll);paint(r.rig,{rattle:m.key==="reach",supine:supineFor(m.key)});
       setInfo(m.week,m.title,{t:m.success?"Mastered":"Learning",c:m.success?"master":"learn"},stars(m),m.blurb);
       document.getElementById("week").value=m.week;label(m.week);}
     raf=requestAnimationFrame(fr);})(0);}
@@ -231,7 +234,7 @@ function scrubTo(w){cur=-1;cancelAnimationFrame(raf);t0=null;floorX=0;
   document.querySelectorAll("#skills .b").forEach(b=>b.setAttribute("aria-current","false"));
   const per=2900;(function fr(ts){if(t0===null)t0=ts;const sway=0.05*Math.sin(TAU*((ts-t0)%per)/per);
     const a=Object.assign({},poseAtWeek(w));a.torso+=sway;const ns=nearest(w),on=Math.abs(ns.week-w)<=1;
-    paint(staticRig(a),{rattle:ns.key==="reach"&&on,face:on?faceFor(ns.key):0});
+    paint(staticRig(a),{rattle:ns.key==="reach"&&on,supine:on&&supineFor(ns.key)});
     setInfo(w,on?ns.title:"Developing…",on?{t:ns.success?"Mastered":"Learning",c:ns.success?"master":"learn"}:null,on?stars(ns):"",on?ns.blurb:"between milestones — the body is interpolated");
     raf=requestAnimationFrame(fr);})(0);}
 function label(w){document.getElementById("wkNum").textContent=Math.round(w);document.getElementById("wkSkill").textContent=nearest(w).key;}
