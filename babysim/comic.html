@@ -115,7 +115,7 @@ function staticRig(a){return rigOf(a,"_",0).rig;}
 function rigPoints(rg,fit){const T=fit.T,b=body(rg);
   return {pelvis:T(b.pelvis),chest:T(b.chest),neck:T(b.neck),head:T(b.head),
     legs:rg.legs.map(l=>{const q=legPts(b.pelvis,l.hip,l.knee);return {knee:T(q.knee),foot:T(q.foot),far:l.far};}),
-    arms:rg.arms.map(m=>{const q=armPts(b.chest,m.shoulder,m.elbow);return {elbow:T(m.elbow),hand:T(q.hand),far:m.far};}),
+    arms:rg.arms.map(m=>{const q=armPts(b.chest,m.shoulder,m.elbow);return {elbow:T(q.elbow),hand:T(q.hand),far:m.far};}),
     rattle:T(DATA.rattle)};}
 
 // ---------- soft-toy painter ----------
