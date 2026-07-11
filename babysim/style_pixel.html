@@ -1,16 +1,11 @@
-"""Render BabySim into comic pages — THREE selectable visual styles, each a self-contained
-canvas page (content-only HTML for the Artifact publisher). Kinematics + RL motion are shared;
-only the "skin" (how the skeleton is painted) differs.
+<title>BabySim — Pixel Playground</title>
+<style>
+.bs{
+  --bg:#0f1424;--ink:#f3ead6;--muted:#8f9bbf;--accent:#ffd23f;--figure:#f3ead6;
+  --disp:"Press Start 2P",ui-monospace,"Courier New",monospace;--body:ui-monospace,Menlo,monospace;
+  --radius:10px;--frame:4px solid #f3ead6;--stageShadow:0 0 0 4px #0f1424,8px 8px 0 #00000055;
+  --barBg:#171d33;--barBorder:3px solid #f3ead6;--btnBg:#1d2540;}
 
-    python3 -m babysim.render      # reads babysim/poses.json -> babysim/style_{pixel,motion,toy}.html
-"""
-from __future__ import annotations
-
-import json
-import os
-
-# ------------------------------------------------------------------ shared layout CSS
-BASE_CSS = r"""
 *{box-sizing:border-box}
 .bs{font-family:var(--body);color:var(--ink);min-height:100%;padding:clamp(14px,3.5vw,36px);line-height:1.5}
 .bs .wrap{max-width:1000px;margin:0 auto}
@@ -43,13 +38,13 @@ BASE_CSS = r"""
 .bs .foot code{font-family:ui-monospace,Menlo,monospace;background:var(--barBg);padding:1px 6px;border-radius:5px;color:var(--ink)}
 .bs .styleswitch{margin-top:14px;font-size:.82rem;color:var(--muted)}
 .bs .styleswitch b{color:var(--ink)}
-"""
 
-# ------------------------------------------------------------------ page markup
-MARKUP = r"""
+body{background:#0f1424}.bs h1{color:#ffd23f;text-shadow:3px 3px 0 #b23c3f}
+</style>
+
 <div class="bs"><div class="wrap">
   <header>
-    <div class="kicker">A Reinforcement-Learning Comic · __STYLE_KICKER__</div>
+    <div class="kicker">A Reinforcement-Learning Comic · Pixel Art</div>
     <h1>BabySim</h1>
     <p class="lede">A tiny 2-D baby teaches itself each motor milestone from scratch with
       <b>REINFORCE</b>. Pick a skill, scrub the weeks, or press play to watch the whole first year.</p>
@@ -70,16 +65,47 @@ MARKUP = r"""
     <span class="read">Week <span id="wkNum">6</span> · <span id="wkSkill">head</span></span>
   </div></div></div>
   <p class="foot">Every pose is a real training run — a policy-gradient (REINFORCE) controller over the
-    baby's joints. Between milestones the body is interpolated. Style: <b>__STYLE_NAME__</b>.
+    baby's joints. Between milestones the body is interpolated. Style: <b>Pixel Playground</b>.
     Reproduce: <code>python3 -m babysim.sim</code> → <code>python3 -m babysim.render</code>.</p>
   <p class="styleswitch">Three styles were generated — <b>Pixel Playground</b>, <b>Motion Study</b>,
-    and <b>Soft Toy</b>. This page is <b>__STYLE_NAME__</b>.</p>
+    and <b>Soft Toy</b>. This page is <b>Pixel Playground</b>.</p>
 </div></div>
-"""
 
-# ------------------------------------------------------------------ shared engine JS
-CORE_JS = r"""
-const DATA=__DATA__, L=DATA.L, M=DATA.milestones;
+<script>
+
+const SKIN={pixel:true,px:7,
+  pal:{sky1:"#8ec7e6",sky2:"#bfe3c9",ground:"#c9a36a",ground2:"#a5824f",skin:"#f6c79b",
+       skinS:"#d99f74",suit:"#e2574f",suitS:"#b23c3f",boot:"#3a6ea5",ink:"#2a2140",hair:"#5a3a2a",toy:"#ffd23f"},
+  bg(c,W,H){const p=this.pal;const g=c.createLinearGradient(0,0,0,H);g.addColorStop(0,p.sky1);g.addColorStop(1,p.sky2);
+    c.fillStyle=g;c.fillRect(0,0,W,H);},
+  blk(c,x,y,w,h,col){c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h)));},
+  limb(c,a,b,w,col,colS){ // pixel capsule: step along the segment stamping squares
+    const n=Math.max(2,Math.round(Math.hypot(b[0]-a[0],b[1]-a[1])));
+    for(let i=0;i<=n;i++){const x=lerp(a[0],b[0],i/n),y=lerp(a[1],b[1],i/n);
+      this.blk(c,x-w/2,y-w/2,w,w,col);this.blk(c,x-w/2,y+w/2-Math.max(1,w*0.28),w,Math.max(1,w*0.28),colS);}},
+  draw(c,P,fit,opts){const p=this.pal,s=fit.s;
+    // ground band
+    const gy=Math.round(fit.ground);this.blk(c,0,gy,off.width,off.height-gy,p.ground);
+    this.blk(c,0,gy,off.width,Math.max(1,s*0.12),p.ground2);
+    if(opts.rattle){this.limb(c,P.rattle,[P.rattle[0],P.rattle[1]+s*0.7],Math.max(1,s*0.08),p.ink,p.ink);
+      this.blk(c,P.rattle[0]-s*0.22,P.rattle[1]-s*0.22,s*0.44,s*0.44,p.toy);}
+    const lw=Math.max(2,s*0.34);
+    this.limb(c,P.pelvis,P.knee,lw,p.suit,p.suitS);this.limb(c,P.knee,P.foot,lw*0.9,p.suit,p.suitS);
+    this.blk(c,P.foot[0]-lw*0.5,P.foot[1]-lw*0.4,lw,lw*0.8,p.boot);
+    this.limb(c,P.chest,P.elbow,lw*0.9,p.suit,p.suitS);this.limb(c,P.elbow,P.hand,lw*0.85,p.skin,p.skinS);
+    this.limb(c,P.pelvis,P.chest,lw*1.7,p.suit,p.suitS);
+    // head
+    const h=P.head,hr=s*0.6;this.blk(c,h[0]-hr,h[1]-hr,hr*2,hr*2,p.skin);
+    this.blk(c,h[0]-hr,h[1]+hr*0.4,hr*2,hr*0.5,p.skinS);
+    this.blk(c,h[0]-hr*0.9,h[1]-hr,hr*1.8,hr*0.5,p.hair);
+    this.blk(c,h[0]+hr*0.05,h[1]-hr*0.15,Math.max(1,s*0.12),Math.max(1,s*0.16),p.ink);
+    this.blk(c,h[0]+hr*0.5,h[1]-hr*0.15,Math.max(1,s*0.12),Math.max(1,s*0.16),p.ink);
+    this.blk(c,h[0]+hr*0.05,h[1]+hr*0.35,hr*0.7,Math.max(1,s*0.1),p.suitS);},
+  after(c,W,H){c.save();c.globalAlpha=.06;c.fillStyle="#000";for(let y=0;y<H;y+=4)c.fillRect(0,y,W,2);c.restore();}
+};
+
+
+const DATA={"milestones": [{"key": "head", "week": 6, "title": "Lifts head", "badge": "HEAD CONTROL", "blurb": "On the mat, tummy down \u2014 the very first push against gravity.", "curve": [0.404, 0.655, 0.801, 0.849, 0.847, 0.826, 0.82, 0.816, 0.829, 0.829, 0.832, 0.833, 0.836, 0.821, 0.842, 0.837, 0.844, 0.846, 0.848, 0.849, 0.848, 0.847, 0.849, 0.847, 0.85, 0.851, 0.851, 0.849, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.85, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851], "angles": {"px": 0.0, "py": 0.45, "torso": 1.4, "head": -1.3841, "shoulder": 2.3, "elbow": 0.5, "hip": 1.9, "knee": 0.6}, "final": 0.851, "stars": 4, "success": true}, {"key": "reach", "week": 18, "title": "Reaches for the rattle", "badge": "EYE\u2013HAND", "blurb": "Propped up, an arm shoots out toward a bright, jingly target.", "curve": [0.68, 0.944, 0.996, 0.999, 0.997, 0.997, 0.999, 1.0, 0.993, 0.999, 1.0, 1.0, 0.988, 0.998, 0.997, 0.996, 1.0, 1.0, 0.99, 1.0, 1.0, 1.0, 0.999, 1.0, 1.0, 0.997, 1.0, 0.961, 0.991, 0.997, 0.999, 0.997, 0.982, 0.999, 0.998, 1.0, 0.987, 0.999, 1.0, 0.993, 0.995, 0.987, 1.0, 0.998, 0.999, 0.997, 0.997, 0.999, 1.0, 0.998, 1.0, 0.995, 1.0, 0.995, 0.991, 0.992, 1.0, 0.99, 0.997, 0.999], "angles": {"px": 0.0, "py": 0.9, "torso": 0.3, "head": 0.0, "shoulder": 1.163, "elbow": -0.1844, "hip": 1.5708, "knee": 1.5708}, "final": 0.999, "stars": 5, "success": true}, {"key": "sit", "week": 28, "title": "Sits unsupported", "badge": "BALANCE", "blurb": "Spine stacks over the hips and \u2014 wobble, wobble \u2014 holds.", "curve": [0.005, 0.591, 0.809, 0.338, 0.199, 0.116, 0.165, 0.18, 0.307, 0.309, 0.373, 0.434, 0.479, 0.218, 0.633, 0.488, 0.674, 0.736, 0.819, 0.873, 0.834, 0.82, 0.907, 0.785, 0.911, 0.964, 1.0, 0.864, 0.955, 0.981, 0.999, 0.971, 0.981, 1.0, 0.985, 1.0, 0.996, 0.96, 0.999, 1.0, 1.0, 0.997, 1.0, 0.987, 0.997, 0.98, 0.998, 0.989, 0.997, 0.997, 0.981, 0.994, 0.929, 0.949, 0.997, 0.953, 0.976, 0.982, 0.988, 0.988], "angles": {"px": 0.0, "py": 0.9, "torso": 0.0154, "head": 0.0, "shoulder": 2.6, "elbow": 0.6, "hip": 1.5708, "knee": 1.5708}, "final": 0.996, "stars": 5, "success": true}, {"key": "crawl", "week": 34, "title": "Crawls", "badge": "ON THE MOVE", "blurb": "Up on all fours, rocking \u2014 then a hand forward, a knee forward, and off they go.", "curve": [0.611, 0.871, 0.979, 0.999, 1.0, 1.0, 1.0, 0.998, 1.0, 1.0, 1.0, 1.0, 1.0, 0.999, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "angles": {"px": 0.0, "py": 0.95, "torso": 1.32, "head": -1.254, "shoulder": 3.0, "elbow": 0.45, "hip": 3.0, "knee": 1.5}, "final": 1.0, "stars": 5, "success": true}, {"key": "stand", "week": 44, "title": "Pulls to stand", "badge": "UPRIGHT", "blurb": "Legs straighten, hips rise \u2014 the world looks different from up here.", "curve": [0.975, 0.893, 0.853, 0.819, 0.758, 0.757, 0.758, 0.67, 0.751, 0.733, 0.735, 0.733, 0.733, 0.733, 0.733, 0.733, 0.733, 0.733, 0.758, 0.754, 0.733, 0.74, 0.733, 0.751, 0.733, 0.729, 0.733, 0.737, 0.733, 0.733, 0.733, 0.733, 0.733, 0.74, 0.733, 0.734, 0.733, 0.748, 0.748, 0.733, 0.744, 0.756, 0.753, 0.755, 0.758, 0.771, 0.753, 0.744, 0.733, 0.756, 0.756, 0.758, 0.758, 0.756, 0.814, 0.843, 0.855, 0.813, 0.849, 0.878], "angles": {"px": 0.0, "py": 1.68, "torso": -0.2764, "head": 0.0, "shoulder": 2.9, "elbow": 0.3, "hip": 3.4361, "knee": -0.2}, "final": 0.876, "stars": 5, "success": true}, {"key": "walk", "week": 54, "title": "First steps", "badge": "LOCOMOTION", "blurb": "One foot forward, catch the fall, again \u2014 walking is controlled falling.", "curve": [0.533, 0.52, 0.566, 0.626, 0.651, 0.748, 0.747, 0.76, 0.733, 0.792, 0.749, 0.78, 0.844, 0.788, 0.795, 0.782, 0.844, 0.864, 0.879, 0.884, 0.871, 0.89, 0.893, 0.895, 0.89, 0.882, 0.876, 0.891, 0.891, 0.888, 0.886, 0.88, 0.883, 0.891, 0.895, 0.886, 0.892, 0.892, 0.897, 0.895, 0.897, 0.891, 0.886, 0.885, 0.892, 0.889, 0.875, 0.895, 0.897, 0.895, 0.896, 0.891, 0.895, 0.895, 0.893, 0.887, 0.892, 0.897, 0.895, 0.896], "angles": {"px": 0.0, "py": 1.66, "torso": 0.072, "head": 0.0, "shoulder": 2.7, "elbow": 0.3, "hip": 2.4864, "knee": 0.6161}, "final": 0.895, "stars": 5, "success": true}], "rattle": [1.61, 2.936], "L": {"torso": 1.5, "neck": 0.28, "head": 0.62, "uarm": 0.7, "farm": 0.62, "thigh": 0.85, "shin": 0.82}, "seed": 0}, L=DATA.L, M=DATA.milestones;
 const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
 const lerp=(a,b,t)=>a+(b-a)*t;
 const lerpAng=(A,B,t)=>{const o={};for(const k in A)o[k]=lerp(A[k],B[k]??A[k],t);return o;};
@@ -188,174 +214,5 @@ slider.addEventListener("input",e=>{syncLabel(+e.target.value);scrubTo(+e.target
 document.getElementById("playAll").addEventListener("click",playAll);
 if(SKIN.init)SKIN.init();
 selectSkill(0);
-"""
 
-# ------------------------------------------------------------------ SKIN A: pixel
-SKIN_PIXEL = r"""
-const SKIN={pixel:true,px:7,
-  pal:{sky1:"#8ec7e6",sky2:"#bfe3c9",ground:"#c9a36a",ground2:"#a5824f",skin:"#f6c79b",
-       skinS:"#d99f74",suit:"#e2574f",suitS:"#b23c3f",boot:"#3a6ea5",ink:"#2a2140",hair:"#5a3a2a",toy:"#ffd23f"},
-  bg(c,W,H){const p=this.pal;const g=c.createLinearGradient(0,0,0,H);g.addColorStop(0,p.sky1);g.addColorStop(1,p.sky2);
-    c.fillStyle=g;c.fillRect(0,0,W,H);},
-  blk(c,x,y,w,h,col){c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h)));},
-  limb(c,a,b,w,col,colS){ // pixel capsule: step along the segment stamping squares
-    const n=Math.max(2,Math.round(Math.hypot(b[0]-a[0],b[1]-a[1])));
-    for(let i=0;i<=n;i++){const x=lerp(a[0],b[0],i/n),y=lerp(a[1],b[1],i/n);
-      this.blk(c,x-w/2,y-w/2,w,w,col);this.blk(c,x-w/2,y+w/2-Math.max(1,w*0.28),w,Math.max(1,w*0.28),colS);}},
-  draw(c,P,fit,opts){const p=this.pal,s=fit.s;
-    // ground band
-    const gy=Math.round(fit.ground);this.blk(c,0,gy,off.width,off.height-gy,p.ground);
-    this.blk(c,0,gy,off.width,Math.max(1,s*0.12),p.ground2);
-    if(opts.rattle){this.limb(c,P.rattle,[P.rattle[0],P.rattle[1]+s*0.7],Math.max(1,s*0.08),p.ink,p.ink);
-      this.blk(c,P.rattle[0]-s*0.22,P.rattle[1]-s*0.22,s*0.44,s*0.44,p.toy);}
-    const lw=Math.max(2,s*0.34);
-    this.limb(c,P.pelvis,P.knee,lw,p.suit,p.suitS);this.limb(c,P.knee,P.foot,lw*0.9,p.suit,p.suitS);
-    this.blk(c,P.foot[0]-lw*0.5,P.foot[1]-lw*0.4,lw,lw*0.8,p.boot);
-    this.limb(c,P.chest,P.elbow,lw*0.9,p.suit,p.suitS);this.limb(c,P.elbow,P.hand,lw*0.85,p.skin,p.skinS);
-    this.limb(c,P.pelvis,P.chest,lw*1.7,p.suit,p.suitS);
-    // head
-    const h=P.head,hr=s*0.6;this.blk(c,h[0]-hr,h[1]-hr,hr*2,hr*2,p.skin);
-    this.blk(c,h[0]-hr,h[1]+hr*0.4,hr*2,hr*0.5,p.skinS);
-    this.blk(c,h[0]-hr*0.9,h[1]-hr,hr*1.8,hr*0.5,p.hair);
-    this.blk(c,h[0]+hr*0.05,h[1]-hr*0.15,Math.max(1,s*0.12),Math.max(1,s*0.16),p.ink);
-    this.blk(c,h[0]+hr*0.5,h[1]-hr*0.15,Math.max(1,s*0.12),Math.max(1,s*0.16),p.ink);
-    this.blk(c,h[0]+hr*0.05,h[1]+hr*0.35,hr*0.7,Math.max(1,s*0.1),p.suitS);},
-  after(c,W,H){c.save();c.globalAlpha=.06;c.fillStyle="#000";for(let y=0;y<H;y+=4)c.fillRect(0,y,W,2);c.restore();}
-};
-"""
-
-# ------------------------------------------------------------------ SKIN B: motion study (B&W)
-SKIN_MOTION = r"""
-const SKIN={trail:true,
-  ink(){return getComputedStyle(document.querySelector(".bs")).getPropertyValue("--figure").trim()||"#20232b";},
-  bg(c,W,H){const plate=getComputedStyle(document.querySelector(".bs")).getPropertyValue("--plate").trim()||"#f3efe6";
-    c.fillStyle=plate;c.fillRect(0,0,W,H);
-    c.strokeStyle=this.ink();c.globalAlpha=.08;c.lineWidth=1;
-    for(let x=0;x<W;x+=44){c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();}
-    for(let y=0;y<H;y+=44){c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke();}
-    c.globalAlpha=1;},
-  fig(c,P,fit,alpha,solid){const s=fit.s,ink=this.ink();c.save();c.globalAlpha=alpha;
-    c.strokeStyle=ink;c.lineWidth=solid?Math.max(2,s*0.05):Math.max(1.5,s*0.04);c.lineCap="round";c.lineJoin="round";
-    const seg=(a,b)=>{c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(b[0],b[1]);c.stroke();};
-    seg(P.pelvis,P.chest);seg(P.chest,P.elbow);seg(P.elbow,P.hand);seg(P.pelvis,P.knee);seg(P.knee,P.foot);
-    // spine to neck
-    seg(P.chest,P.neck);
-    const h=P.head,hr=s*0.42;c.beginPath();c.arc(h[0],h[1],hr,0,7);c.stroke();
-    if(solid){c.fillStyle=ink;[P.pelvis,P.chest,P.elbow,P.hand,P.knee,P.foot].forEach(q=>{c.beginPath();c.arc(q[0],q[1],s*0.06,0,7);c.fill();});
-      c.beginPath();c.arc(h[0]+hr*0.3,h[1]-hr*0.1,hr*0.12,0,7);c.fill();}
-    c.restore();},
-  ghost(c,P,fit,frac){this.fig(c,P,fit,0.05+0.16*frac,false);},
-  draw(c,P,fit,opts){const s=fit.s,ink=this.ink();
-    c.strokeStyle=ink;c.globalAlpha=.5;c.lineWidth=2;c.beginPath();c.moveTo(30,fit.ground);c.lineTo(cv.width-30,fit.ground);c.stroke();c.globalAlpha=1;
-    if(opts.rattle){c.strokeStyle=ink;c.lineWidth=Math.max(1.5,s*0.03);c.beginPath();c.moveTo(P.rattle[0],P.rattle[1]);c.lineTo(P.rattle[0],P.rattle[1]+s*0.7);c.stroke();
-      c.beginPath();c.arc(P.rattle[0],P.rattle[1],s*0.16,0,7);c.stroke();}
-    this.fig(c,P,fit,1,true);}
-};
-"""
-
-# ------------------------------------------------------------------ SKIN C: soft toy (3D-ish)
-SKIN_TOY = r"""
-const SKIN={
-  pal:{skin:"#f7c9a2",skinHi:"#ffe6cf",suit:"#ff7a6b",suitHi:"#ffb0a3",suit2:"#6ec6c9",
-       boot:"#8a6cff",hair:"#7a4a34",toy:"#ffcf4d",cheek:"#ff9aa0"},
-  bg(c,W,H){const dark=getComputedStyle(document.querySelector(".bs")).getPropertyValue("--dark").trim()==="1";
-    const g=c.createLinearGradient(0,0,0,H);
-    if(dark){g.addColorStop(0,"#2a2740");g.addColorStop(1,"#3a3358");}else{g.addColorStop(0,"#fdeede");g.addColorStop(1,"#f6d9c4");}
-    c.fillStyle=g;c.fillRect(0,0,W,H);
-    const gy=fitG();const gg=c.createLinearGradient(0,gy-20,0,H);
-    gg.addColorStop(0,dark?"#00000000":"#ffffff00");gg.addColorStop(1,dark?"#00000040":"#e7b98c66");
-    c.fillStyle=gg;c.fillRect(0,gy,W,H-gy);},
-  blob(c,a,b,w,col,hi){ // shaded rounded capsule via gradient perpendicular-ish
-    const g=c.createLinearGradient(a[0]-w,a[1]-w,a[0]+w,a[1]+w);g.addColorStop(0,hi);g.addColorStop(.55,col);g.addColorStop(1,col);
-    c.strokeStyle=g;c.lineWidth=w;c.lineCap="round";c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(b[0],b[1]);c.stroke();},
-  ball(c,ctr,r,col,hi){const g=c.createRadialGradient(ctr[0]-r*0.35,ctr[1]-r*0.4,r*0.15,ctr[0],ctr[1],r);
-    g.addColorStop(0,hi);g.addColorStop(1,col);c.fillStyle=g;c.beginPath();c.arc(ctr[0],ctr[1],r,0,7);c.fill();},
-  draw(c,P,fit,opts){const s=fit.s,p=this.pal;
-    // soft contact shadow
-    c.save();c.fillStyle="rgba(60,40,30,.22)";c.filter="blur(6px)";
-    c.beginPath();c.ellipse((P.pelvis[0]+P.foot[0])/2,fit.ground+4,s*0.9,s*0.16,0,0,7);c.fill();c.restore();
-    c.lineJoin="round";
-    if(opts.rattle){this.blob(c,P.rattle,[P.rattle[0],P.rattle[1]+s*0.7],s*0.08,"#c99a2e","#ffe08a");
-      this.ball(c,P.rattle,s*0.26,p.toy,"#fff2c0");}
-    c.save();c.shadowColor="rgba(50,30,20,.18)";c.shadowBlur=s*0.18;c.shadowOffsetY=s*0.06;
-    this.blob(c,P.pelvis,P.knee,s*0.34,p.suit,p.suitHi);this.blob(c,P.knee,P.foot,s*0.3,p.suit,p.suitHi);
-    this.ball(c,P.foot,s*0.2,p.boot,"#c3b4ff");
-    this.blob(c,P.chest,P.elbow,s*0.3,p.suit,p.suitHi);this.blob(c,P.elbow,P.hand,s*0.27,p.skin,p.skinHi);
-    this.ball(c,P.hand,s*0.17,p.skin,p.skinHi);
-    this.blob(c,P.pelvis,P.chest,s*0.62,p.suit,p.suitHi);c.restore();
-    // belly patch
-    this.ball(c,[(P.pelvis[0]+P.chest[0])/2,(P.pelvis[1]+P.chest[1])/2],s*0.2,p.suit2,"#c7 efff".replace(" ",""));
-    // head
-    const h=P.head,hr=s*0.6;this.ball(c,h,hr,p.skin,p.skinHi);
-    c.save();c.fillStyle=p.hair;c.beginPath();c.arc(h[0],h[1]-hr*0.55,hr*0.7,Math.PI,2*Math.PI);c.fill();
-    c.beginPath();c.arc(h[0]+hr*0.15,h[1]-hr*0.75,hr*0.28,0,7);c.fill();c.restore();
-    const ex=h[0]+hr*0.18,ey=h[1]-hr*0.02;
-    [-1,1].forEach(d=>{this.ball(c,[ex+d*hr*0.3,ey],hr*0.15,"#fff","#fff");
-      c.fillStyle="#33263a";c.beginPath();c.arc(ex+d*hr*0.3+hr*0.03,ey+hr*0.02,hr*0.075,0,7);c.fill();
-      c.fillStyle=p.cheek;c.globalAlpha=.7;c.beginPath();c.arc(ex+d*hr*0.34,ey+hr*0.32,hr*0.13,0,7);c.fill();c.globalAlpha=1;});
-    c.strokeStyle="#8a4a44";c.lineWidth=Math.max(2,s*0.05);c.lineCap="round";
-    c.beginPath();c.arc(ex+hr*0.16,ey+hr*0.2,hr*0.22,0.15*Math.PI,0.85*Math.PI);c.stroke();}
-};
-function fitG(){const b=GB,W=cv.width,H=cv.height,pad=44;const s=Math.min((W-2*pad)/(b.maxx-b.minx),(H-2*pad)/(b.maxy-b.miny));
-  const oy=pad+((H-2*pad)-s*(b.maxy-b.miny))/2;return H-(oy+s*(0-b.miny));}
-"""
-
-STYLES = {
-    "pixel": dict(name="Pixel Playground", kicker="Pixel Art", skin=SKIN_PIXEL, tokens="""
-  --bg:#0f1424;--ink:#f3ead6;--muted:#8f9bbf;--accent:#ffd23f;--figure:#f3ead6;
-  --disp:"Press Start 2P",ui-monospace,"Courier New",monospace;--body:ui-monospace,Menlo,monospace;
-  --radius:10px;--frame:4px solid #f3ead6;--stageShadow:0 0 0 4px #0f1424,8px 8px 0 #00000055;
-  --barBg:#171d33;--barBorder:3px solid #f3ead6;--btnBg:#1d2540;""",
-        page="body{background:#0f1424}.bs h1{color:#ffd23f;text-shadow:3px 3px 0 #b23c3f}"),
-    "motion": dict(name="Motion Study", kicker="B&W Chronophotography", skin=SKIN_MOTION, tokens="""
-  --bg:#f3efe6;--ink:#20232b;--muted:#6b6a63;--accent:#b8503a;--plate:#f3efe6;--figure:#20232b;
-  --disp:"Georgia","Times New Roman",serif;--body:"Georgia",serif;
-  --radius:4px;--frame:1px solid #20232b;--stageShadow:0 18px 40px -18px #00000040;
-  --barBg:#ece7db;--barBorder:1px solid #20232b;--btnBg:#ece7db;""",
-        page="""@media (prefers-color-scheme:dark){.bs{--bg:#181a1f;--ink:#eae7dd;--muted:#9a978d;--plate:#1e2128;--figure:#eae7dd;--barBg:#20232b;--btnBg:#20232b;--frame:1px solid #eae7dd}}
-body{background:var(--plate,#f3efe6)}.bs h1{letter-spacing:.01em}.bs .kicker{font-style:italic;font-family:Georgia,serif;letter-spacing:.12em}"""),
-    "toy": dict(name="Soft Toy", kicker="Claymation 3-D", skin=SKIN_TOY, tokens="""
-  --bg:#fdeede;--ink:#4a3a52;--muted:#9a8aa0;--accent:#ff7a6b;--dark:0;--figure:#4a3a52;
-  --disp:"Baloo 2","Comic Sans MS","Trebuchet MS",system-ui,sans-serif;--body:system-ui,sans-serif;
-  --radius:22px;--frame:0;--stageShadow:0 22px 44px -20px #b98a6a88;
-  --barBg:#ffffffcc;--barBorder:0;--btnBg:#fff3ea;""",
-        page="""@media (prefers-color-scheme:dark){.bs{--dark:1;--bg:#241f36;--ink:#efe7f5;--muted:#a99fc2;--barBg:#2c2743cc;--btnBg:#332c4d}}
-body{background:var(--bg,#fdeede)}.bs h1{color:var(--accent)}"""),
-}
-
-SHELL = """<title>BabySim — __NAME__</title>
-<style>
-.bs{__TOKENS__}
-__BASE__
-__PAGE__
-</style>
-__MARKUP__
-<script>
-__SKIN__
-__CORE__
 </script>
-"""
-
-
-def render(poses_path="babysim/poses.json", outdir="babysim"):
-    with open(poses_path) as fh:
-        data = json.load(fh)
-    for m in data["milestones"]:
-        m.pop("mastered", None)
-    core = CORE_JS.replace("__DATA__", json.dumps(data))
-    written = []
-    for key, s in STYLES.items():
-        markup = (MARKUP.replace("__STYLE_NAME__", s["name"]).replace("__STYLE_KICKER__", s["kicker"]))
-        html = (SHELL.replace("__NAME__", s["name"]).replace("__TOKENS__", s["tokens"])
-                .replace("__BASE__", BASE_CSS).replace("__PAGE__", s["page"])
-                .replace("__MARKUP__", markup).replace("__SKIN__", s["skin"]).replace("__CORE__", core))
-        out = os.path.join(outdir, f"style_{key}.html")
-        with open(out, "w") as fh:
-            fh.write(html)
-        written.append(out)
-        print(f"wrote {out}  ({len(html)} bytes)")
-    return written
-
-
-if __name__ == "__main__":
-    render()
