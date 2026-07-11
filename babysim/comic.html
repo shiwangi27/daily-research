@@ -91,32 +91,67 @@ function fitter(W,H,pad){const b=GB,s=Math.min((W-2*pad)/(b.maxx-b.minx),(H-2*pa
   const ox=pad+((W-2*pad)-s*(b.maxx-b.minx))/2,oy=pad+((H-2*pad)-s*(b.maxy-b.miny))/2;
   return {T:p=>[ox+s*(p[0]-b.minx),H-(oy+s*(p[1]-b.miny))],s,ground:H-(oy+s*(0-b.miny))};}
 
+// 2-link IK: mid-joint (knee/elbow) world point for a limb root P -> target F.
+// pick "x" bends forward (max x), "y" bends upward (max y). Enables foot/hand planting.
+function ik2(P,F,L1,L2,pick){let vx=F[0]-P[0],vy=F[1]-P[1],dd=Math.hypot(vx,vy)||1e-3;
+  const mx=L1+L2-1e-3,mn=Math.abs(L1-L2)+1e-3;
+  if(dd>mx){vx*=mx/dd;vy*=mx/dd;dd=mx;}else if(dd<mn){vx*=mn/dd;vy*=mn/dd;dd=mn;}
+  F=[P[0]+vx,P[1]+vy];
+  const t=(L1*L1-L2*L2+dd*dd)/(2*dd),h=Math.sqrt(Math.max(0,L1*L1-t*t));
+  const m=[P[0]+t*vx/dd,P[1]+t*vy/dd],ox=-vy/dd*h,oy=vx/dd*h;
+  const k1=[m[0]+ox,m[1]+oy],k2=[m[0]-ox,m[1]-oy];
+  const sel=pick==="y"?(k1[1]>=k2[1]):(k1[0]>=k2[0]);
+  return {mid:sel?k1:k2,end:F};}
+// a foot/hand contact over a gait cycle: planted on the floor and sliding BACK during stance,
+// then arcing forward through the air during swing.
+function contact(x0,phase,S,lift){let u=((phase/TAU)%1+1)%1,x,y;
+  if(u<0.5){const f=u/0.5;x=S*(0.5-f);y=0;}                     // stance: front -> back, on the floor
+  else{const f=(u-0.5)/0.5;x=S*(f-0.5);y=lift*Math.sin(Math.PI*f);}  // swing: back -> front, lifted
+  return [x0+x,y];}
+
+function walkRig(a,p){const S=0.52,lift=0.28,ph=TAU*p,py=a.py-0.09+0.03*Math.sin(2*TAU*p);
+  const rg={px:a.px,py:py,torso:a.torso+0.05*Math.sin(2*TAU*p),head:a.head,legs:[],arms:[]};
+  [1,0].forEach(near=>{const o=near?0:1;
+    const f=contact(a.px,ph+(o?Math.PI:0),S,lift),ik=ik2([rg.px,rg.py],f,L.thigh,L.shin,"x");
+    rg.legs.push({ik:1,kneeW:ik.mid,footW:ik.end,far:!!o});
+    rg.arms.push({shoulder:a.shoulder+0.3*Math.sin(ph+(o?0:Math.PI)),elbow:a.elbow,far:!!o});});
+  return {rig:rg,scroll:1};}
+
+function crawlRig(a,p){const S=0.28,lift=0.16,ph=TAU*p;
+  const rg={px:a.px,py:a.py,torso:a.torso,head:a.head+0.05*Math.sin(TAU*p),legs:[],arms:[]};
+  const b=body(rg);
+  [1,0].forEach(near=>{const o=near?0:1;
+    const kf=contact(a.px-0.02,ph+(o?Math.PI:0),S,lift),ikL=ik2([a.px,a.py],kf,L.thigh,L.shin,"y");
+    rg.legs.push({ik:1,kneeW:ikL.mid,footW:ikL.end,far:!!o});
+    const hf=contact(b.chest[0]+0.16,ph+(o?0:Math.PI),S,lift),ikA=ik2(b.chest,hf,L.uarm,L.farm,"y");
+    rg.arms.push({ik:1,elbowW:ikA.mid,handW:ikA.end,far:!!o});});
+  return {rig:rg,scroll:1};}
+
 // build a bilateral rig (angles for near/far arm+leg) from a base pose + per-skill motion
 function rigOf(a,key,p){
-  let base=Object.assign({},a),scroll=0,legAmp=0,armSwing=0,ph=0,bat=0;
+  if(key==="walk")return walkRig(a,p);
+  if(key==="crawl")return crawlRig(a,p);
+  let base=Object.assign({},a),bat=0;
   const e=0.5-0.5*Math.cos(TAU*p), sw=Math.sin(TAU*p);
   if(key==="head")base.head=lerp(0.35,a.head,e);
-  else if(key==="reach"){base.shoulder=lerp(a.shoulder,a.shoulder,e);bat=1;}
+  else if(key==="reach")bat=1;
   else if(key==="sit"){base.torso=a.torso+0.16*sw;base.head=a.head+0.1*Math.sin(2*TAU*p);}
-  else if(key==="crawl"){scroll=1;legAmp=0.5;armSwing=0.5;ph=TAU*p;base.head=a.head+0.05*sw;}
   else if(key==="stand"){base.py=lerp(a.py-0.55,a.py,e);base.knee=lerp(a.knee+1.15,a.knee,e);base.hip=lerp(a.hip-0.55,a.hip,e);base.torso=a.torso+0.05*sw;}
-  else if(key==="walk"){scroll=1;legAmp=0.6;armSwing=0.32;ph=TAU*p;base.torso=a.torso+0.05*Math.sin(2*TAU*p);base.py=a.py+0.05*Math.abs(Math.sin(TAU*p));}
   const rg={px:base.px,py:base.py,torso:base.torso,head:base.head,legs:[],arms:[]};
-  [1,0].forEach(near=>{const o=near?0:1; // o=0 near, o=1 far
-    let hip=base.hip,knee=base.knee,sh=base.shoulder,el=base.elbow;
-    if(legAmp){const a2=ph+(o?Math.PI:0);hip=base.hip+legAmp*Math.sin(a2);knee=base.knee+0.75*Math.max(0,Math.sin(a2+0.5));}
-    else hip=base.hip+(o?-0.13:0.05);            // slight splay -> two legs read
-    if(armSwing){const a2=ph+(o?0:Math.PI);sh=base.shoulder+armSwing*Math.sin(a2);}
-    else if(bat){sh=base.shoulder+(o?-0.18:0.18)*sw;}
-    else sh=base.shoulder+(o?0.14:-0.04);
-    rg.legs.push({hip,knee,far:!!o});rg.arms.push({shoulder:sh,elbow:el,far:!!o});});
-  return {rig:rg,scroll};
+  [1,0].forEach(near=>{const o=near?0:1;
+    let sh=base.shoulder;
+    if(bat)sh=base.shoulder+(o?-0.18:0.18)*sw; else sh=base.shoulder+(o?0.14:-0.04);
+    rg.legs.push({hip:base.hip+(o?-0.13:0.05),knee:base.knee,far:!!o});
+    rg.arms.push({shoulder:sh,elbow:base.elbow,far:!!o});});
+  return {rig:rg,scroll:0};
 }
 function staticRig(a){return rigOf(a,"_",0).rig;}
 function rigPoints(rg,fit){const T=fit.T,b=body(rg);
   return {pelvis:T(b.pelvis),chest:T(b.chest),neck:T(b.neck),head:T(b.head),
-    legs:rg.legs.map(l=>{const q=legPts(b.pelvis,l.hip,l.knee);return {knee:T(q.knee),foot:T(q.foot),far:l.far};}),
-    arms:rg.arms.map(m=>{const q=armPts(b.chest,m.shoulder,m.elbow);return {elbow:T(q.elbow),hand:T(q.hand),far:m.far};}),
+    legs:rg.legs.map(l=>l.ik?{knee:T(l.kneeW),foot:T(l.footW),far:l.far}
+      :(function(){const q=legPts(b.pelvis,l.hip,l.knee);return {knee:T(q.knee),foot:T(q.foot),far:l.far};})()),
+    arms:rg.arms.map(m=>m.ik?{elbow:T(m.elbowW),hand:T(m.handW),far:m.far}
+      :(function(){const q=armPts(b.chest,m.shoulder,m.elbow);return {elbow:T(q.elbow),hand:T(q.hand),far:m.far};})()),
     rattle:T(DATA.rattle)};}
 
 // ---------- soft-toy painter ----------
