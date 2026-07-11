@@ -20,7 +20,7 @@ import os
 import numpy as np
 
 PI = np.pi
-L = dict(torso=1.5, neck=0.28, head=0.62, uarm=0.70, farm=0.62, thigh=0.85, shin=0.82)
+L = dict(torso=1.02, neck=0.20, head=0.52, uarm=0.50, farm=0.44, thigh=0.60, shin=0.56)
 
 
 def _d(ang):
@@ -66,12 +66,12 @@ def clamp(a: dict) -> dict:
 
 # Targets read off hand-authored "mastered" poses, so each reward optimum is reachable and
 # looks right (uprightness/balance genuinely optimal, rather than fighting the fixed limbs).
-RATTLE = fk(_base(py=0.5, torso=1.5, head=-0.95, hip=0.55, knee=1.5, shoulder=0.15, elbow=0.15))["hand"]
-SIT_COMX = float(com(fk(_base(py=0.9, hip=PI / 2, knee=PI / 2, shoulder=2.6, elbow=0.6, torso=0.0)))[0])
+RATTLE = fk(_base(py=0.34, torso=1.5, head=-0.95, hip=0.55, knee=1.5, shoulder=0.15, elbow=0.15))["hand"]
+SIT_COMX = float(com(fk(_base(py=0.32, hip=PI / 2, knee=0.15, shoulder=2.5, elbow=0.7, torso=0.0)))[0])
 
 
 def cost_head(a):                                  # prone: lift the head as high as it goes
-    return (fk(a)["head"][1] - 1.7) ** 2
+    return (fk(a)["head"][1] - 0.98) ** 2
 def cost_reach(a):                                 # get the hand to the toy
     return float(np.sum((fk(a)["hand"] - RATTLE) ** 2))
 def cost_sit(a):                                   # torso upright, COM over the sitting base
@@ -85,7 +85,7 @@ def cost_walk(a):                                  # a leg swung forward, foot d
     return (a["hip"] - 2.3) ** 2 + 0.5 * (a["knee"] - 0.6) ** 2 + (a["torso"] - 0.12) ** 2 \
         + 2.0 * p["foot"][1] ** 2
 def cost_crawl(a):                                 # on all fours, head up to look ahead
-    return (fk(a)["head"][1] - 2.0) ** 2
+    return (fk(a)["head"][1] - 1.45) ** 2
 
 
 def _reward(costfn, scale):
@@ -95,27 +95,27 @@ def _reward(costfn, scale):
 MILESTONES = [
     dict(key="head", week=6, title="Lifts head", badge="HEAD CONTROL",
          blurb="On the mat, tummy down — the very first push against gravity.",
-         base=_base(py=0.45, torso=1.4, shoulder=2.3, elbow=0.5, hip=1.9, knee=0.6),
+         base=_base(py=0.30, torso=1.4, shoulder=2.3, elbow=0.5, hip=1.7, knee=0.6),
          control=["head"], reward=_reward(cost_head, 1.5), success=0.8),
     dict(key="reach", week=18, title="Reaches for the rattle", badge="EYE–HAND",
          blurb="On her back, knees up, arms shoot up toward a bright, jingly toy overhead.",
-         base=_base(py=0.5, torso=1.5, head=-0.95, hip=0.55, knee=1.5, shoulder=1.3, elbow=0.4),
+         base=_base(py=0.34, torso=1.5, head=-0.95, hip=0.55, knee=1.5, shoulder=1.3, elbow=0.4),
          control=["shoulder", "elbow"], reward=_reward(cost_reach, 1.0), success=0.75),
     dict(key="sit", week=28, title="Sits unsupported", badge="BALANCE",
          blurb="Spine stacks over the hips and — wobble, wobble — holds.",
-         base=_base(py=0.9, hip=PI / 2, knee=PI / 2, shoulder=2.6, elbow=0.6, torso=0.7),
+         base=_base(py=0.32, hip=PI / 2, knee=0.15, shoulder=2.5, elbow=0.7, torso=0.7),
          control=["torso"], reward=_reward(cost_sit, 3.0), success=0.75),
     dict(key="crawl", week=34, title="Crawls", badge="ON THE MOVE",
          blurb="Up on all fours, rocking — then a hand forward, a knee forward, and off they go.",
-         base=_base(py=0.95, torso=1.32, head=0.3, shoulder=3.0, elbow=0.45, hip=3.0, knee=1.5),
+         base=_base(py=0.64, torso=1.30, head=0.3, shoulder=3.0, elbow=0.5, hip=3.0, knee=1.5),
          control=["head"], reward=_reward(cost_crawl, 1.5), success=0.7),
     dict(key="stand", week=44, title="Pulls to stand", badge="UPRIGHT",
          blurb="Legs straighten, hips rise — the world looks different from up here.",
-         base=_base(py=1.68, shoulder=2.9, elbow=0.3, hip=3.0, knee=0.5),
+         base=_base(py=1.16, shoulder=2.9, elbow=0.3, hip=3.0, knee=0.5),
          control=["torso", "hip", "knee"], reward=_reward(cost_stand, 1.5), success=0.7),
     dict(key="walk", week=54, title="First steps", badge="LOCOMOTION",
          blurb="One foot forward, catch the fall, again — walking is controlled falling.",
-         base=_base(py=1.66, shoulder=2.7, elbow=0.3, hip=3.0, knee=0.3),
+         base=_base(py=1.14, shoulder=2.7, elbow=0.3, hip=3.0, knee=0.3),
          control=["hip", "knee", "torso"], reward=_reward(cost_walk, 1.2), success=0.6),
 ]
 

@@ -96,7 +96,8 @@ function gbounds(){let xs=[],ys=[];[NEWBORN,...M.map(m=>m.angles)].forEach(a=>{c
   l=legPts(b.pelvis,a.hip,a.knee),r=armPts(b.chest,a.shoulder,a.elbow);
   [b.pelvis,b.chest,b.head,l.knee,l.foot,r.elbow,r.hand].forEach(p=>{xs.push(p[0]);ys.push(p[1]);});});
   xs.push(DATA.rattle[0]);ys.push(DATA.rattle[1]);
-  return {minx:Math.min(...xs)-1.4,maxx:Math.max(...xs)+1.4,miny:-.5,maxy:Math.max(...ys)+1.1};}
+  // generous margins so the baby reads small in a big room
+  return {minx:Math.min(...xs)-3.4,maxx:Math.max(...xs)+3.4,miny:-.7,maxy:Math.max(...ys)+2.4};}
 const GB=gbounds();
 function fitter(W,H,pad){const b=GB,s=Math.min((W-2*pad)/(b.maxx-b.minx),(H-2*pad)/(b.maxy-b.miny));
   const ox=pad+((W-2*pad)-s*(b.maxx-b.minx))/2,oy=pad+((H-2*pad)-s*(b.maxy-b.miny))/2;
