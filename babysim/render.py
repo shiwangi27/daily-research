@@ -1,8 +1,9 @@
-"""Render BabySim poses into a self-contained comic-book page (content-only HTML for the
-Artifact publisher: no <html>/<head>/<body>). Inlines the poses JSON so the page is
-reproducible and needs no network.
+"""Render BabySim into a self-contained comic-book page (content-only HTML for the Artifact
+publisher: no <html>/<head>/<body>). Kinematics are re-implemented in JS and driven by the
+learned joint *angles*, so the page can animate real movement, scrub any week, and play the
+whole first year. Inlines the poses JSON — reproducible, no network.
 
-    python3 -m babysim.render          # reads babysim/poses.json -> babysim/comic.html
+    python3 -m babysim.render        # reads babysim/poses.json -> babysim/comic.html
 """
 from __future__ import annotations
 
@@ -13,264 +14,318 @@ HTML = r"""<title>BabySim — Learning to Move</title>
 <style>
 :root{
   --paper:#FBF3E4; --paper2:#F3E7CE; --ink:#241C3B; --muted:#6E6484;
-  --coral:#FF6B5C; --sky:#4FB9C9; --sun:#FFC24B; --line:#241C3B;
-  --panel:#FFFDF7; --shadow:rgba(36,28,59,.22);
+  --coral:#FF6B5C; --sky:#4FB9C9; --sun:#FFC24B; --mint:#7BC8A4;
+  --panel:#FFFDF7; --shadow:rgba(36,28,59,.22); --disc:#FBF1DC;
   --tint-head:#FFE0D6; --tint-reach:#FFEFC7; --tint-sit:#D9F0E5;
-  --tint-stand:#D8ECF6; --tint-walk:#EADFF6;
+  --tint-crawl:#F3E1FA; --tint-stand:#D8ECF6; --tint-walk:#E6E1FB;
 }
-@media (prefers-color-scheme:dark){
-  :root{ --paper:#14121F; --paper2:#1B1830; --ink:#F4EEE0; --muted:#A99FC2;
-    --line:#0C0A14; --panel:#211D33; --shadow:rgba(0,0,0,.5);
-    --tint-head:#3A2530; --tint-reach:#3A331E; --tint-sit:#1F3A30;
-    --tint-stand:#1E3340; --tint-walk:#2C2440; }
-}
-:root[data-theme="light"]{ --paper:#FBF3E4; --paper2:#F3E7CE; --ink:#241C3B; --muted:#6E6484;
-  --line:#241C3B; --panel:#FFFDF7; --shadow:rgba(36,28,59,.22);
-  --tint-head:#FFE0D6; --tint-reach:#FFEFC7; --tint-sit:#D9F0E5; --tint-stand:#D8ECF6; --tint-walk:#EADFF6;}
-:root[data-theme="dark"]{ --paper:#14121F; --paper2:#1B1830; --ink:#F4EEE0; --muted:#A99FC2;
-  --line:#0C0A14; --panel:#211D33; --shadow:rgba(0,0,0,.5);
-  --tint-head:#3A2530; --tint-reach:#3A331E; --tint-sit:#1F3A30; --tint-stand:#1E3340; --tint-walk:#2C2440;}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#14121F; --paper2:#1B1830; --ink:#F4EEE0; --muted:#A99FC2;
+  --panel:#211D33; --shadow:rgba(0,0,0,.5); --disc:#F6ECD6;
+  --tint-head:#3A2530; --tint-reach:#3A331E; --tint-sit:#1F3A30;
+  --tint-crawl:#2E2340; --tint-stand:#1E3340; --tint-walk:#282247;}}
+:root[data-theme="light"]{--paper:#FBF3E4;--paper2:#F3E7CE;--ink:#241C3B;--muted:#6E6484;
+  --panel:#FFFDF7;--shadow:rgba(36,28,59,.22);--disc:#FBF1DC;
+  --tint-head:#FFE0D6;--tint-reach:#FFEFC7;--tint-sit:#D9F0E5;--tint-crawl:#F3E1FA;--tint-stand:#D8ECF6;--tint-walk:#E6E1FB;}
+:root[data-theme="dark"]{--paper:#14121F;--paper2:#1B1830;--ink:#F4EEE0;--muted:#A99FC2;
+  --panel:#211D33;--shadow:rgba(0,0,0,.5);--disc:#F6ECD6;
+  --tint-head:#3A2530;--tint-reach:#3A331E;--tint-sit:#1F3A30;--tint-crawl:#2E2340;--tint-stand:#1E3340;--tint-walk:#282247;}
 
 *{box-sizing:border-box}
-.bs{
-  --comic:"Comic Sans MS","Chalkboard SE","Comic Neue",system-ui,sans-serif;
+.bs{--comic:"Comic Sans MS","Chalkboard SE","Comic Neue",system-ui,sans-serif;
   --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  font-family:var(--body); color:var(--ink);
-  background:
-    radial-gradient(var(--paper2) 1.3px, transparent 1.4px) 0 0/14px 14px,
-    var(--paper);
-  min-height:100%; padding:clamp(16px,4vw,40px); line-height:1.5;
-}
+  font-family:var(--body);color:var(--ink);
+  background:radial-gradient(var(--paper2) 1.3px,transparent 1.4px) 0 0/15px 15px,var(--paper);
+  min-height:100%;padding:clamp(16px,4vw,40px);line-height:1.5}
 .bs .wrap{max-width:1120px;margin:0 auto}
-
-/* header */
-.bs header{text-align:center;margin-bottom:26px}
+.bs header{text-align:center;margin-bottom:22px}
 .bs .kicker{font-family:var(--comic);text-transform:uppercase;letter-spacing:.22em;
   font-size:.72rem;color:var(--coral);font-weight:700}
 .bs h1{font-family:var(--comic);font-weight:800;line-height:.95;text-wrap:balance;
-  font-size:clamp(2.6rem,8vw,4.8rem);margin:.15em 0 .1em;
-  color:var(--sun);-webkit-text-stroke:2.5px var(--line);
-  text-shadow:4px 5px 0 var(--shadow);letter-spacing:.01em}
-.bs .lede{max-width:60ch;margin:.4em auto 0;color:var(--muted);font-size:1.02rem}
-.bs .lede b{color:var(--ink)}
+  font-size:clamp(2.6rem,8vw,4.8rem);margin:.12em 0 .1em;color:var(--sun);
+  -webkit-text-stroke:2.5px var(--ink);text-shadow:4px 5px 0 var(--shadow)}
+.bs .lede{max-width:62ch;margin:.3em auto 0;color:var(--muted)}.bs .lede b{color:var(--ink)}
 
-/* stage */
-.bs .stage{position:relative;margin:22px 0 30px;border:4px solid var(--line);
-  border-radius:22px;background:var(--panel);box-shadow:8px 9px 0 var(--shadow);
-  overflow:hidden}
-.bs .stage .bg{position:absolute;inset:0;background:
-  radial-gradient(circle at 1px 1px, var(--line) 1.1px, transparent 1.4px) 0 0/12px 12px;
-  opacity:.06}
-.bs .stage svg{display:block;width:100%;height:min(52vh,440px)}
-.bs .stagebar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;
-  padding:14px 18px;border-top:3px dashed var(--line);background:var(--paper2)}
-.bs .stagebar .wk{font-family:var(--comic);font-weight:800;font-size:1.05rem;
-  background:var(--ink);color:var(--paper);padding:3px 12px;border-radius:999px;
-  font-variant-numeric:tabular-nums}
-.bs .stagebar .ttl{font-family:var(--comic);font-weight:800;font-size:1.25rem;flex:1;min-width:160px}
-.bs .stagebar .cap{flex-basis:100%;color:var(--muted);font-size:.95rem;margin-top:-2px}
-.bs .stars{letter-spacing:2px;font-size:1.1rem;color:var(--sun);
-  -webkit-text-stroke:.8px var(--line)}
-.bs .status{font-family:var(--comic);font-weight:700;font-size:.75rem;text-transform:uppercase;
-  letter-spacing:.08em;padding:3px 10px;border-radius:999px;border:2px solid var(--line)}
-.bs .status.master{background:var(--sun);color:var(--ink)}
-.bs .status.learn{background:var(--sky);color:var(--ink)}
-.bs .replay{font-family:var(--comic);font-weight:700;cursor:pointer;border:3px solid var(--line);
-  background:var(--coral);color:#fff;border-radius:999px;padding:6px 16px;font-size:.9rem;
-  box-shadow:2px 3px 0 var(--shadow)}
-.bs .replay:active{transform:translate(1px,2px);box-shadow:0 1px 0 var(--shadow)}
-.bs .replay:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+.bs .stage{position:relative;margin:20px 0 14px;border:4px solid var(--ink);border-radius:22px;
+  background:linear-gradient(#EAF6FB00,#EAF6FB00),var(--panel);box-shadow:8px 9px 0 var(--shadow);overflow:hidden}
+.bs .stage svg{display:block;width:100%;height:min(54vh,460px)}
+.bs .stagebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:13px 18px;
+  border-top:3px dashed var(--ink);background:var(--paper2)}
+.bs .wk{font-family:var(--comic);font-weight:800;font-size:1.02rem;background:var(--ink);
+  color:var(--paper);padding:3px 12px;border-radius:999px;font-variant-numeric:tabular-nums}
+.bs .ttl{font-family:var(--comic);font-weight:800;font-size:1.22rem;flex:1;min-width:150px}
+.bs .stars{letter-spacing:2px;font-size:1.05rem;color:var(--sun);-webkit-text-stroke:.8px var(--ink)}
+.bs .status{font-family:var(--comic);font-weight:700;font-size:.72rem;text-transform:uppercase;
+  letter-spacing:.07em;padding:3px 10px;border-radius:999px;border:2px solid var(--ink)}
+.bs .status.master{background:var(--sun);color:var(--ink)}.bs .status.learn{background:var(--sky);color:var(--ink)}
+.bs .cap{flex-basis:100%;color:var(--muted);font-size:.94rem}
 
-/* panel strip */
-.bs .rail-label{font-family:var(--comic);font-weight:800;text-transform:uppercase;
-  letter-spacing:.1em;font-size:.8rem;color:var(--muted);margin:6px 2px 12px}
-.bs .rail{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
-.bs .panel{position:relative;border:3.5px solid var(--line);border-radius:16px;
-  background:var(--tint,#fff);box-shadow:5px 6px 0 var(--shadow);cursor:pointer;
-  overflow:hidden;text-align:left;padding:0;color:inherit;font:inherit;
-  transition:transform .12s ease}
+.bs .controls{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:6px 2px 20px}
+.bs button.btn{font-family:var(--comic);font-weight:700;cursor:pointer;border:3px solid var(--ink);
+  border-radius:999px;padding:8px 18px;font-size:.95rem;box-shadow:3px 4px 0 var(--shadow);color:#fff;background:var(--coral)}
+.bs button.btn.ghost{background:var(--panel);color:var(--ink)}
+.bs button.btn:active{transform:translate(1px,2px);box-shadow:1px 2px 0 var(--shadow)}
+.bs button.btn:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+.bs .slider{flex:1;min-width:240px;display:flex;flex-direction:column;gap:2px}
+.bs .slider .row{display:flex;align-items:center;gap:10px}
+.bs .slider input[type=range]{flex:1;accent-color:var(--coral);height:26px}
+.bs .slider .read{font-family:var(--comic);font-weight:800;font-size:.9rem;white-space:nowrap;min-width:132px}
+.bs .slider .read span{color:var(--coral)}
+.bs .ticks{display:flex;justify-content:space-between;font-size:.64rem;color:var(--muted);
+  font-variant-numeric:tabular-nums;padding:0 2px}
+
+.bs .rail-label{font-family:var(--comic);font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+  font-size:.8rem;color:var(--muted);margin:2px 2px 12px}
+.bs .rail{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:15px}
+.bs .panel{position:relative;border:3.5px solid var(--ink);border-radius:16px;background:var(--tint,#fff);
+  box-shadow:5px 6px 0 var(--shadow);cursor:pointer;overflow:hidden;text-align:left;padding:0;color:inherit;
+  font:inherit;transition:transform .12s ease}
 .bs .panel:hover{transform:translate(-1px,-3px)}
 .bs .panel:focus-visible{outline:3px solid var(--sky);outline-offset:3px}
 .bs .panel[aria-current="true"]{outline:4px solid var(--coral);outline-offset:0}
-.bs .panel .num{position:absolute;top:8px;left:10px;font-family:var(--comic);font-weight:800;
-  font-size:.8rem;color:var(--ink);opacity:.5;font-variant-numeric:tabular-nums}
-.bs .panel .badge{position:absolute;top:8px;right:8px;font-family:var(--comic);font-weight:800;
-  font-size:.56rem;letter-spacing:.04em;background:var(--sun);color:var(--ink);
-  border:2px solid var(--line);border-radius:6px;padding:2px 6px;transform:rotate(4deg)}
-.bs .panel svg{display:block;width:100%;height:170px}
-.bs .panel .cap{padding:10px 12px 12px;border-top:3px solid var(--line);background:var(--panel)}
-.bs .panel .cap .wk{font-family:var(--comic);font-weight:800;font-size:.72rem;color:var(--coral);
-  text-transform:uppercase;letter-spacing:.06em}
-.bs .panel .cap .t{font-family:var(--comic);font-weight:800;font-size:1.02rem;line-height:1.1;margin:1px 0 3px}
-.bs .panel .cap .s{font-size:.95rem;color:var(--sun);-webkit-text-stroke:.7px var(--line);letter-spacing:1px}
-
-.bs .foot{margin-top:26px;text-align:center;color:var(--muted);font-size:.85rem;line-height:1.6}
-.bs .foot code{font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--paper2);
-  padding:1px 6px;border-radius:5px;color:var(--ink)}
-@media (prefers-reduced-motion:reduce){ .bs .panel{transition:none} }
+.bs .panel .num{position:absolute;top:7px;left:10px;font-family:var(--comic);font-weight:800;
+  font-size:.78rem;color:var(--ink);opacity:.45;font-variant-numeric:tabular-nums}
+.bs .panel .badge{position:absolute;top:7px;right:7px;font-family:var(--comic);font-weight:800;
+  font-size:.54rem;letter-spacing:.03em;background:var(--sun);color:var(--ink);border:2px solid var(--ink);
+  border-radius:6px;padding:2px 6px;transform:rotate(3deg)}
+.bs .panel svg{display:block;width:100%;height:150px}
+.bs .panel .pcap{padding:9px 12px 11px;border-top:3px solid var(--ink);background:var(--panel)}
+.bs .panel .pcap .w{font-family:var(--comic);font-weight:800;font-size:.7rem;color:var(--coral);
+  text-transform:uppercase;letter-spacing:.05em}
+.bs .panel .pcap .t{font-family:var(--comic);font-weight:800;font-size:1rem;line-height:1.1;margin:1px 0 3px}
+.bs .panel .pcap .s{font-size:.92rem;color:var(--sun);-webkit-text-stroke:.7px var(--ink);letter-spacing:1px}
+.bs .foot{margin-top:24px;text-align:center;color:var(--muted);font-size:.85rem;line-height:1.6}
+.bs .foot code{font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--paper2);padding:1px 6px;border-radius:5px;color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.bs .panel{transition:none}}
 </style>
 
 <div class="bs"><div class="wrap">
   <header>
     <div class="kicker">A Reinforcement-Learning Comic</div>
     <h1>BabySim</h1>
-    <p class="lede">How a mind learns to move — <b>one week at a time</b>. A tiny 2-D baby
-      teaches itself each motor milestone from scratch with <b>REINFORCE</b>; the wobble you
-      see is real exploration noise annealing away as the skill is mastered. Tap a week to watch.</p>
+    <p class="lede">How a mind learns to move — <b>one week at a time</b>. A tiny 2-D baby teaches
+      itself each motor milestone from scratch with <b>REINFORCE</b>. Scrub the weeks, tap a
+      milestone, or press play to watch the whole first year unfold.</p>
   </header>
 
-  <div class="stage">
-    <div class="bg"></div>
-    <svg id="stageSvg" viewBox="0 0 800 440" role="img" aria-label="Animated baby performing the selected skill"></svg>
+  <div class="stage"><svg id="stageSvg" viewBox="0 0 820 460" role="img"
+      aria-label="Animated baby performing a motor skill"></svg>
     <div class="stagebar">
-      <span class="wk" id="stWk">WK 6</span>
+      <span class="wk" id="stWk">Week 6</span>
       <span class="ttl" id="stTitle">Lifts head</span>
       <span class="stars" id="stStars">★★★★</span>
       <span class="status master" id="stStatus">Mastered</span>
-      <button class="replay" id="replay" type="button">▶ Replay</button>
       <span class="cap" id="stCap"></span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="playAll" type="button">▶ Play the first year</button>
+    <button class="btn ghost" id="replay" type="button">↻ Replay skill</button>
+    <div class="slider">
+      <div class="row">
+        <input type="range" id="week" min="1" max="56" value="6" step="1" aria-label="Week">
+        <span class="read">Week <span id="wkNum">6</span> · <span id="wkSkill">head control</span></span>
+      </div>
+      <div class="ticks" id="ticks"></div>
     </div>
   </div>
 
   <div class="rail-label">The first year, milestone by milestone →</div>
   <div class="rail" id="rail"></div>
 
-  <p class="foot">
-    Each panel is a real training run: a Gaussian policy over the baby's joint angles, learned by
-    policy-gradient RL on a shaped reward (head height, hand-to-toy distance, balance, foot contact).
-    Stars = final reward. Curriculum &amp; renderer are offline and reproducible —
-    <code>python3 -m babysim.sim</code> then <code>python3 -m babysim.render</code>.
-  </p>
+  <p class="foot">Every pose is a real training run: a Gaussian policy over the baby's joint
+    angles, learned by policy-gradient RL on a shaped reward (head height, hand-to-toy distance,
+    balance, foot contact). Between milestones the body is interpolated. Offline &amp; reproducible —
+    <code>python3 -m babysim.sim</code> then <code>python3 -m babysim.render</code>.</p>
 </div></div>
 
 <script>
-const DATA = __DATA__;
-const TINT = {head:"var(--tint-head)",reach:"var(--tint-reach)",sit:"var(--tint-sit)",
-  stand:"var(--tint-stand)",walk:"var(--tint-walk)"};
-const NS="http://www.w3.org/2000/svg";
-const reduce = window.matchMedia("(prefers-reduced-motion:reduce)").matches;
-
-// --- fit world coords (y up) into an svg viewBox (y down), including head radius + rattle
-function bounds(frames, extra){
-  let xs=[], ys=[];
-  frames.forEach(pt=>{for(const k in pt){xs.push(pt[k][0]);ys.push(pt[k][1]);}});
-  (extra||[]).forEach(p=>{xs.push(p[0]);ys.push(p[1]);});
-  const HR=0.75; // head radius margin
-  return {minx:Math.min(...xs)-HR,maxx:Math.max(...xs)+HR,miny:Math.min(...ys)-0.3,maxy:Math.max(...ys)+HR};
-}
-function fitter(b,W,H,pad){
-  const sx=(W-2*pad)/(b.maxx-b.minx), sy=(H-2*pad)/(b.maxy-b.miny), s=Math.min(sx,sy);
-  const ox=pad+((W-2*pad)-s*(b.maxx-b.minx))/2, oy=pad+((H-2*pad)-s*(b.maxy-b.miny))/2;
-  return p=>[ox+s*(p[0]-b.minx), H-(oy+s*(p[1]-b.miny))]; // flip y
-}
+const DATA=__DATA__, L=DATA.L, M=DATA.milestones, NS="http://www.w3.org/2000/svg";
+const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
+const TINT={head:"--tint-head",reach:"--tint-reach",sit:"--tint-sit",crawl:"--tint-crawl",stand:"--tint-stand",walk:"--tint-walk"};
+const SKIN="#F7C89E", HAIR="#5B3A2E";
+const NEWBORN={px:0,py:0.34,torso:1.5,head:0.55,shoulder:2.15,elbow:1.5,hip:1.6,knee:1.7}; // curled, week 1
+const css=v=>getComputedStyle(document.querySelector(".bs")).getPropertyValue(v).trim()||"#000";
 const lerp=(a,b,t)=>a+(b-a)*t;
-function lerpPose(A,B,t){const o={};for(const k in A)o[k]=[lerp(A[k][0],B[k][0],t),lerp(A[k][1],B[k][1],t)];return o;}
+function lerpAng(A,B,t){const o={};for(const k in A)o[k]=lerp(A[k],B[k]??A[k],t);return o;}
 
-function el(tag,attrs){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
-function line(svg,a,b,w,col){svg.appendChild(el("line",{x1:a[0],y1:a[1],x2:b[0],y2:b[1],
-  stroke:col,"stroke-width":w,"stroke-linecap":"round"}));}
+// --- kinematics (mirrors babysim/sim.fk) ---
+function fk(a){const d=t=>[Math.sin(t),Math.cos(t)],ad=(p,v,s)=>[p[0]+v[0]*s,p[1]+v[1]*s];
+  const pelvis=[a.px,a.py],chest=ad(pelvis,d(a.torso),L.torso),neck=ad(chest,d(a.torso),L.neck),
+    head=ad(neck,d(a.torso+a.head),L.head),elbow=ad(chest,d(a.shoulder),L.uarm),
+    hand=ad(elbow,d(a.shoulder+a.elbow),L.farm),knee=ad(pelvis,d(a.hip),L.thigh),
+    foot=ad(knee,d(a.hip+a.knee),L.shin);
+  return {pelvis,chest,neck,head,elbow,hand,knee,foot};}
 
-// draw the baby + ground into svg for a given pose (screen coords via T), scale s (px per world unit)
-function drawBaby(svg, pt, T, s, opts){
-  opts=opts||{};
-  const ink=getCSS("--ink"), coral=getCSS("--coral"), sky=getCSS("--sky"), sun=getCSS("--sun");
-  const P=k=>T(pt[k]);
-  const LW=Math.max(6,s*0.17);
-  // ground line at the lowest body point
-  let gy=-1e9; for(const k in pt) gy=Math.max(gy,T(pt[k])[1]);
-  gy+=LW*0.5;
-  svg.appendChild(el("line",{x1:20,y1:gy,x2:svg.viewBox.baseVal.width-20,y2:gy,
-    stroke:ink,"stroke-width":4,"stroke-linecap":"round",opacity:.55}));
-  // rattle (reach skill)
-  if(opts.rattle){const r=T(opts.rattle);
-    line(svg,r,[r[0]+s*0.05,r[1]+s*0.9],Math.max(4,s*0.06),ink);
-    svg.appendChild(el("circle",{cx:r[0],cy:r[1],r:s*0.28,fill:sun,stroke:ink,"stroke-width":LW*0.35}));
-    svg.appendChild(el("circle",{cx:r[0]-s*0.09,cy:r[1]-s*0.09,r:s*0.06,fill:"#fff",opacity:.85}));}
-  // limbs (behind body): far leg/arm hint for depth
-  line(svg,P("pelvis"),P("knee"),LW,ink); line(svg,P("knee"),P("foot"),LW,ink);
-  line(svg,P("chest"),P("elbow"),LW,ink);  line(svg,P("elbow"),P("hand"),LW,ink);
-  // onesie torso (colored)
-  line(svg,P("pelvis"),P("chest"),LW*1.7,opts.color||coral);
-  // booties + mitten
-  svg.appendChild(el("circle",{cx:P("foot")[0],cy:P("foot")[1],r:LW*0.7,fill:sky,stroke:ink,"stroke-width":LW*0.32}));
-  svg.appendChild(el("circle",{cx:P("hand")[0],cy:P("hand")[1],r:LW*0.62,fill:sky,stroke:ink,"stroke-width":LW*0.32}));
+// global world bounds (fixed transform for the stage so scale is stable & growth shows)
+function gbounds(){let xs=[],ys=[];[NEWBORN,...M.map(m=>m.angles)].forEach(a=>{const p=fk(a);
+  for(const k in p){xs.push(p[k][0]);ys.push(p[k][1]);}});xs.push(DATA.rattle[0]);ys.push(DATA.rattle[1]);
+  return {minx:Math.min(...xs)-.9,maxx:Math.max(...xs)+.9,miny:-.35,maxy:Math.max(...ys)+.9};}
+const GB=gbounds();
+function fitter(b,W,H,pad){const s=Math.min((W-2*pad)/(b.maxx-b.minx),(H-2*pad)/(b.maxy-b.miny));
+  const ox=pad+((W-2*pad)-s*(b.maxx-b.minx))/2, oy=pad+((H-2*pad)-s*(b.maxy-b.miny))/2;
+  return {T:p=>[ox+s*(p[0]-b.minx),H-(oy+s*(p[1]-b.miny))],s};}
+
+function el(t,at){const e=document.createElementNS(NS,t);for(const k in at)e.setAttribute(k,at[k]);return e;}
+function cap(svg,a,b,w,fill){ // chubby capsule with ink outline
+  svg.appendChild(el("line",{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:css("--ink"),
+    "stroke-width":w+Math.max(3,w*0.34),"stroke-linecap":"round"}));
+  svg.appendChild(el("line",{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:fill,"stroke-width":w,"stroke-linecap":"round"}));}
+function disc(svg,c,r,fill,ow){const e=el("circle",{cx:c[0],cy:c[1],r:r,fill:fill});
+  if(ow){e.setAttribute("stroke",css("--ink"));e.setAttribute("stroke-width",ow);}svg.appendChild(e);}
+
+function drawBaby(svg, ang, fit, opts){
+  opts=opts||{}; const {T,s}=fit, P=k=>T(fk(ang)[k]), pts=fk(ang);
+  const LW=s*0.30, onesie=opts.onesie||css("--coral"), ink=css("--ink");
+  // spotlight disc behind the figure (keeps the dark outline legible on any theme)
+  let xs=[],ys=[];for(const k in pts){xs.push(P(k)[0]);ys.push(P(k)[1]);}
+  const cx=(Math.min(...xs)+Math.max(...xs))/2, cy=(Math.min(...ys)+Math.max(...ys))/2;
+  const rr=Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys))/2+s*0.55;
+  svg.appendChild(el("ellipse",{cx:cx,cy:cy,rx:rr,ry:rr*0.92,fill:css("--disc"),opacity:.85}));
+  // ground + scrolling ticks (implies forward motion during locomotion)
+  const gy=T([0,-0.12])[1], W=svg.viewBox.baseVal.width;
+  svg.appendChild(el("line",{x1:24,y1:gy,x2:W-24,y2:gy,stroke:ink,"stroke-width":4,"stroke-linecap":"round",opacity:.6}));
+  const off=((opts.scroll||0)*90)%34;
+  for(let x=28-off;x<W-20;x+=34) svg.appendChild(el("line",{x1:x,y1:gy+4,x2:x-8,y2:gy+14,stroke:ink,"stroke-width":3,"stroke-linecap":"round",opacity:.28}));
+  // rattle (reach)
+  if(opts.rattle){const r=T(DATA.rattle);cap(svg,r,[r[0]+s*0.05,r[1]+s*0.85],Math.max(4,s*0.06),ink);
+    disc(svg,r,s*0.26,css("--sun"),LW*0.32);disc(svg,[r[0]-s*0.08,r[1]-s*0.08],s*0.06,"#fff");}
+  // legs (behind), arm, torso, head
+  cap(svg,P("pelvis"),P("knee"),LW,onesie); cap(svg,P("knee"),P("foot"),LW*0.92,onesie);
+  disc(svg,P("foot"),LW*0.72,css("--sky"),LW*0.3);
+  cap(svg,P("pelvis"),P("chest"),LW*1.9,onesie);            // chubby belly
+  disc(svg,[(P("pelvis")[0]+P("chest")[0])/2,(P("pelvis")[1]+P("chest")[1])/2],s*0.12,css("--sun"),0); // onesie star-ish
+  cap(svg,P("chest"),P("elbow"),LW*0.92,onesie); cap(svg,P("elbow"),P("hand"),LW*0.86,SKIN);
+  disc(svg,P("hand"),LW*0.6,SKIN,LW*0.3);
   // head
-  const h=P("head"), hr=s*0.55;
-  svg.appendChild(el("circle",{cx:h[0],cy:h[1],r:hr,fill:getCSS("--panel"),stroke:ink,"stroke-width":LW*0.85}));
-  // hair curl
-  const curl=el("path",{d:`M ${h[0]-hr*0.2} ${h[1]-hr*0.82} q ${hr*0.5} ${-hr*0.5} ${hr*0.75} ${hr*0.1}`,
-    fill:"none",stroke:ink,"stroke-width":LW*0.5,"stroke-linecap":"round"}); svg.appendChild(curl);
-  // face — eyes toward +x (facing forward), rosy cheeks, smile
-  const ex=h[0]+hr*0.16;
-  svg.appendChild(el("circle",{cx:ex-hr*0.28,cy:h[1]-hr*0.05,r:hr*0.09,fill:ink}));
-  svg.appendChild(el("circle",{cx:ex+hr*0.28,cy:h[1]-hr*0.05,r:hr*0.09,fill:ink}));
-  svg.appendChild(el("circle",{cx:ex-hr*0.30,cy:h[1]+hr*0.28,r:hr*0.13,fill:coral,opacity:.55}));
-  svg.appendChild(el("circle",{cx:ex+hr*0.30,cy:h[1]+hr*0.28,r:hr*0.13,fill:coral,opacity:.55}));
-  svg.appendChild(el("path",{d:`M ${ex-hr*0.22} ${h[1]+hr*0.18} q ${hr*0.22} ${hr*0.28} ${hr*0.44} 0`,
+  const h=P("head"), hr=s*0.62;
+  disc(svg,h,hr,SKIN,LW*0.9);
+  svg.appendChild(el("path",{d:`M ${h[0]-hr*0.15} ${h[1]-hr*0.9} q ${hr*0.55} ${-hr*0.55} ${hr*0.85} ${hr*0.12}`,
+    fill:"none",stroke:HAIR,"stroke-width":LW*0.7,"stroke-linecap":"round"}));
+  const ex=h[0]+hr*0.18, ey=h[1]-hr*0.04;
+  [[-1],[1]].forEach(([d])=>{disc(svg,[ex+d*hr*0.30,ey],hr*0.14,"#fff",0);
+    disc(svg,[ex+d*hr*0.30+hr*0.03,ey+hr*0.02],hr*0.08,ink,0);
+    disc(svg,[ex+d*hr*0.30+hr*0.10,ey-hr*0.05],hr*0.03,"#fff",0);
+    disc(svg,[ex+d*hr*0.32,ey+hr*0.30],hr*0.12,css("--coral"),0);});     // rosy cheeks
+  svg.appendChild(el("path",{d:`M ${ex-hr*0.16} ${ey+hr*0.30} q ${hr*0.18} ${hr*0.26} ${hr*0.36} 0`,
     fill:"none",stroke:ink,"stroke-width":LW*0.4,"stroke-linecap":"round"}));
 }
-function getCSS(v){return getComputedStyle(document.querySelector(".bs")).getPropertyValue(v).trim()||"#241C3B";}
+function clear(svg){while(svg.firstChild)svg.removeChild(svg.firstChild);}
 
-function renderInto(svg, pose, skillKey, opts){
-  while(svg.firstChild) svg.removeChild(svg.firstChild);
-  const W=svg.viewBox.baseVal.width, H=svg.viewBox.baseVal.height;
-  const extra = skillKey==="reach"?[DATA.rattle]:[];
-  const b=bounds([pose],extra);
-  const T=fitter(b,W,H,Math.min(W,H)*0.10);
-  const s=(H-2*(Math.min(W,H)*0.10))/(b.maxy-b.miny);
-  drawBaby(svg,pose,T,s,Object.assign({rattle:skillKey==="reach"?DATA.rattle:null},opts||{}));
+// --- per-skill motion: modulate learned angles by phase p in [0,1] ---
+function motion(m,p){const b=Object.assign({},m.angles);let scroll=0;
+  const e=0.5-0.5*Math.cos(2*Math.PI*p), sw=Math.sin(2*Math.PI*p);
+  if(m.key==="head") b.head=lerp(0.35,m.angles.head,e);
+  else if(m.key==="reach"){b.shoulder=lerp(m.angles.shoulder+1.15,m.angles.shoulder,e);b.elbow=lerp(m.angles.elbow+1.05,m.angles.elbow,e);}
+  else if(m.key==="sit"){b.torso=m.angles.torso+0.17*sw;b.head=m.angles.head+0.10*Math.sin(4*Math.PI*p);}
+  else if(m.key==="crawl"){b.shoulder=m.angles.shoulder-0.5*sw;b.hip=m.angles.hip+0.5*sw;b.knee=m.angles.knee-0.25*sw;b.elbow=m.angles.elbow+0.2*sw;scroll=p;}
+  else if(m.key==="stand"){const r=e;b.py=lerp(m.angles.py-0.55,m.angles.py,r);b.knee=lerp(m.angles.knee+1.15,m.angles.knee,r);b.hip=lerp(m.angles.hip-0.55,m.angles.hip,r);b.torso=m.angles.torso+0.05*sw;}
+  else if(m.key==="walk"){b.hip=m.angles.hip+0.55*sw;b.knee=m.angles.knee+0.4*(0.5-0.5*Math.cos(2*Math.PI*p+1));b.torso=m.angles.torso+0.04*Math.sin(4*Math.PI*p);scroll=p;}
+  return {ang:b,scroll};
+}
+const stars=m=>"★".repeat(m.stars)+"☆".repeat(5-m.stars);
+function setInfo(week,title,st,starTxt,blurb){
+  document.getElementById("stWk").textContent="Week "+Math.round(week);
+  document.getElementById("stTitle").textContent=title;
+  document.getElementById("stStars").textContent=starTxt||"";
+  const S=document.getElementById("stStatus");S.style.display=st?"":"none";
+  if(st){S.textContent=st.t;S.className="status "+st.c;}
+  document.getElementById("stCap").textContent=blurb||"";
 }
 
-// --- panel strip
+// --- panels ---
 const rail=document.getElementById("rail");
-DATA.milestones.forEach((m,i)=>{
-  const btn=document.createElement("button");
-  btn.className="panel"; btn.style.setProperty("--tint",TINT[m.key]); btn.type="button";
-  btn.setAttribute("aria-label",`Week ${m.week}: ${m.title}`);
-  btn.innerHTML=`<span class="num">${String(i+1).padStart(2,"0")}</span>
-    <span class="badge">${m.badge}</span>
-    <svg viewBox="0 0 240 170" aria-hidden="true"></svg>
-    <span class="cap"><span class="wk">Week ${m.week}</span>
-      <span class="t">${m.title}</span><span class="s">${"★".repeat(m.stars)}${"☆".repeat(5-m.stars)}</span></span>`;
+M.forEach((m,i)=>{const btn=document.createElement("button");btn.className="panel";btn.type="button";
+  btn.style.setProperty("--tint","var("+TINT[m.key]+")");btn.setAttribute("aria-label","Week "+m.week+": "+m.title);
+  btn.innerHTML=`<span class="num">${String(i+1).padStart(2,"0")}</span><span class="badge">${m.badge}</span>
+    <svg viewBox="0 0 240 150" aria-hidden="true"></svg>
+    <span class="pcap"><span class="w">Week ${m.week}</span><span class="t">${m.title}</span><span class="s">${stars(m)}</span></span>`;
   rail.appendChild(btn);
-  renderInto(btn.querySelector("svg"), m.mastered, m.key, {color:accentFor(m.key)});
-  btn.addEventListener("click",()=>select(i));
+  const svg=btn.querySelector("svg"),fit=fitPanel(m.angles,240,150,m.key==="reach");
+  drawBaby(svg,m.angles,fit,{onesie:onesieFor(m.key),rattle:m.key==="reach"});
+  btn.addEventListener("click",()=>selectSkill(i));
 });
-function accentFor(k){return getCSS({head:"--coral",reach:"--sun",sit:"--sky",
-  stand:"--coral",walk:"--sky"}[k]||"--coral");}  // resolve to a real hex for SVG attributes
+function onesieFor(k){return css({head:"--coral",reach:"--sun",sit:"--mint",crawl:"--sky",stand:"--coral",walk:"--sky"}[k]||"--coral");}
+function fitPanel(ang,W,H,withRattle){let xs=[],ys=[];const p=fk(ang);
+  for(const k in p){xs.push(p[k][0]);ys.push(p[k][1]);}
+  if(withRattle){xs.push(DATA.rattle[0]);ys.push(DATA.rattle[1]);}
+  const b={minx:Math.min(...xs)-.8,maxx:Math.max(...xs)+.8,miny:-.3,maxy:Math.max(...ys)+.9};
+  return fitter(b,W,H,14);}
 
-// --- stage animation
+// --- stage engine ---
 const stageSvg=document.getElementById("stageSvg");
-let cur=0, raf=null, t0=null;
-function select(i){
-  cur=i; const m=DATA.milestones[i];
+const STAGE_FIT=fitter(GB,820,460,40);
+let mode="skill", cur=0, raf=null, t0=null, scrubWeek=6;
+function drawStage(ang,opts){clear(stageSvg);drawBaby(stageSvg,ang,STAGE_FIT,opts);}
+
+function selectSkill(i){mode="skill";cur=i;
   document.querySelectorAll(".panel").forEach((p,j)=>p.setAttribute("aria-current",j===i?"true":"false"));
-  document.getElementById("stWk").textContent="WK "+m.week;
-  document.getElementById("stTitle").textContent=m.title;
-  document.getElementById("stStars").textContent="★".repeat(m.stars)+"☆".repeat(5-m.stars);
-  const st=document.getElementById("stStatus");
-  st.textContent=m.success?"Mastered":"Still learning"; st.className="status "+(m.success?"master":"learn");
-  document.getElementById("stCap").textContent=m.blurb;
-  play();
+  const m=M[i];document.getElementById("week").value=m.week;syncSliderLabel(m.week);
+  loop();}
+function loop(){cancelAnimationFrame(raf);t0=null;
+  const m=M[cur];
+  setInfo(m.week,m.title,{t:m.success?"Mastered":"Learning",c:m.success?"master":"learn"},stars(m),m.blurb);
+  if(reduce){drawStage(m.angles,{onesie:onesieFor(m.key),rattle:m.key==="reach"});return;}
+  const per=2200;
+  function fr(ts){if(t0===null)t0=ts;const p=((ts-t0)%per)/per;const mo=motion(m,p);
+    drawStage(mo.ang,{onesie:onesieFor(m.key),rattle:m.key==="reach",scroll:mo.scroll});
+    raf=requestAnimationFrame(fr);}
+  raf=requestAnimationFrame(fr);
 }
-function play(){
-  const m=DATA.milestones[cur];
-  const seq=[...m.snaps, m.mastered, m.mastered]; // wobbly -> steady -> hold
-  if(reduce){ renderInto(stageSvg,m.mastered,m.key,{color:accentFor(m.key)}); return; }
-  cancelAnimationFrame(raf); t0=null;
-  const seg=620; // ms per segment
-  function frame(ts){
-    if(t0===null)t0=ts;
-    const total=(seq.length-1)*seg, el=(ts-t0)%total;
-    const idx=Math.floor(el/seg), tt=(el%seg)/seg;
-    const pose=lerpPose(seq[idx],seq[idx+1],tt);
-    renderInto(stageSvg,pose,m.key,{color:accentFor(m.key)});
-    raf=requestAnimationFrame(frame);
-  }
-  raf=requestAnimationFrame(frame);
+
+// full first-year timeline
+function buildTimeline(){const segs=[];let prev=NEWBORN,prevWk=1;
+  M.forEach(m=>{segs.push({type:"trans",from:prev,to:m.angles,wkFrom:prevWk,wkTo:m.week,dur:800,m});
+    segs.push({type:"demo",m,dur:2000});prev=m.angles;prevWk=m.week;});
+  return segs;}
+function playAll(){mode="grow";cancelAnimationFrame(raf);t0=null;
+  document.querySelectorAll(".panel").forEach(p=>p.setAttribute("aria-current","false"));
+  const segs=buildTimeline(),total=segs.reduce((s,x)=>s+x.dur,0);
+  if(reduce){const m=M[M.length-1];drawStage(m.angles,{onesie:onesieFor(m.key)});return;}
+  function fr(ts){if(t0===null)t0=ts;let el=(ts-t0)%total,i=0;while(el>segs[i].dur){el-=segs[i].dur;i++;}
+    const sg=segs[i],p=el/sg.dur,m=sg.m;
+    if(sg.type==="trans"){const ang=lerpAng(sg.from,sg.to,p),wk=lerp(sg.wkFrom,sg.wkTo,p);
+      drawStage(ang,{onesie:onesieFor(m.key)});
+      setInfo(wk,"Growing up…",null,"","");document.getElementById("week").value=Math.round(wk);syncSliderLabel(Math.round(wk));}
+    else{const mm=motion(m,p);
+      drawStage(mm.ang,{onesie:onesieFor(m.key),rattle:m.key==="reach",scroll:mm.scroll});
+      setInfo(m.week,m.title,{t:m.success?"Mastered":"Learning",c:m.success?"master":"learn"},stars(m),m.blurb);
+      document.getElementById("week").value=m.week;syncSliderLabel(m.week);}
+    raf=requestAnimationFrame(fr);}
+  raf=requestAnimationFrame(fr);
 }
-document.getElementById("replay").addEventListener("click",play);
-select(0);
+
+// week scrubber -> interpolate between milestones (with newborn anchor at week 1)
+function poseAtWeek(w){const anchors=[{week:1,angles:NEWBORN,key:"head"},...M];
+  if(w<=anchors[0].week)return {ang:anchors[0].angles,m:M[0]};
+  for(let i=0;i<anchors.length-1;i++){const a=anchors[i],b=anchors[i+1];
+    if(w>=a.week&&w<=b.week){const t=(w-a.week)/(b.week-a.week);
+      return {ang:lerpAng(a.angles,b.angles,t),m:(t<0.5?(a.key?a:M[0]):b)};}}
+  return {ang:M[M.length-1].angles,m:M[M.length-1]};}
+function nearestSkill(w){let best=M[0];M.forEach(m=>{if(Math.abs(m.week-w)<Math.abs(best.week-w))best=m;});return best;}
+function scrubTo(w){mode="scrub";cancelAnimationFrame(raf);t0=null;scrubWeek=w;
+  document.querySelectorAll(".panel").forEach(p=>p.setAttribute("aria-current","false"));
+  const per=2600;
+  function fr(ts){if(t0===null)t0=ts;const sw=0.05*Math.sin(2*Math.PI*((ts-t0)%per)/per);
+    const {ang}=poseAtWeek(scrubWeek);const a=Object.assign({},ang);a.torso+=sw; // gentle idle sway
+    const ns=nearestSkill(scrubWeek),onMile=Math.abs(ns.week-scrubWeek)<=1;
+    drawStage(a,{onesie:onesieFor(ns.key),rattle:ns.key==="reach"&&onMile});
+    setInfo(scrubWeek,onMile?ns.title:"Developing…",onMile?{t:ns.success?"Mastered":"Learning",c:ns.success?"master":"learn"}:null,onMile?stars(ns):"",onMile?ns.blurb:"between milestones — the body is interpolated");
+    raf=requestAnimationFrame(fr);}
+  raf=requestAnimationFrame(fr);
+}
+function syncSliderLabel(w){document.getElementById("wkNum").textContent=Math.round(w);
+  document.getElementById("wkSkill").textContent=nearestSkill(w).badge.toLowerCase();}
+
+// ticks under the slider
+document.getElementById("ticks").innerHTML=M.map(m=>`<span>${m.week}</span>`).join("");
+const slider=document.getElementById("week");
+slider.max=M[M.length-1].week+2;
+slider.addEventListener("input",e=>{const w=+e.target.value;syncSliderLabel(w);scrubTo(w);});
+document.getElementById("playAll").addEventListener("click",playAll);
+document.getElementById("replay").addEventListener("click",()=>{if(mode==="grow")playAll();else loop();});
+selectSkill(0);
 </script>
 """
 
@@ -278,6 +333,8 @@ select(0);
 def render(poses_path="babysim/poses.json", out="babysim/comic.html"):
     with open(poses_path) as fh:
         data = json.load(fh)
+    for m in data["milestones"]:
+        m.pop("mastered", None)          # JS recomputes points from angles
     html = HTML.replace("__DATA__", json.dumps(data))
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     with open(out, "w") as fh:

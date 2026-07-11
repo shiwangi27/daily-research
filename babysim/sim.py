@@ -84,6 +84,8 @@ def cost_walk(a):                                  # a leg swung forward, foot d
     p = fk(a)
     return (a["hip"] - 2.3) ** 2 + 0.5 * (a["knee"] - 0.6) ** 2 + (a["torso"] - 0.12) ** 2 \
         + 2.0 * p["foot"][1] ** 2
+def cost_crawl(a):                                 # on all fours, head up to look ahead
+    return (fk(a)["head"][1] - 2.0) ** 2
 
 
 def _reward(costfn, scale):
@@ -103,6 +105,10 @@ MILESTONES = [
          blurb="Spine stacks over the hips and — wobble, wobble — holds.",
          base=_base(py=0.9, hip=PI / 2, knee=PI / 2, shoulder=2.6, elbow=0.6, torso=0.7),
          control=["torso"], reward=_reward(cost_sit, 3.0), success=0.75),
+    dict(key="crawl", week=34, title="Crawls", badge="ON THE MOVE",
+         blurb="Up on all fours, rocking — then a hand forward, a knee forward, and off they go.",
+         base=_base(py=0.95, torso=1.32, head=0.3, shoulder=3.0, elbow=0.45, hip=3.0, knee=1.5),
+         control=["head"], reward=_reward(cost_crawl, 1.5), success=0.7),
     dict(key="stand", week=44, title="Pulls to stand", badge="UPRIGHT",
          blurb="Legs straighten, hips rise — the world looks different from up here.",
          base=_base(py=1.68, shoulder=2.9, elbow=0.3, hip=3.0, knee=0.5),
@@ -142,7 +148,8 @@ def train_milestone(m, iters=240, batch=64, lr=0.12, sigma0=0.6, sigma_floor=0.1
         if it in checkpoints:
             snaps.append(_pts(pose_from(theta + sigma * rng.standard_normal(len(ctrl)))))
     final_r = reward(pose_from(theta))
-    return dict(curve=[round(c, 3) for c in curve], snaps=snaps, mastered=_pts(pose_from(theta)),
+    angles = {k: round(float(v), 4) for k, v in pose_from(theta).items()}
+    return dict(curve=[round(c, 3) for c in curve[::4]], angles=angles, mastered=_pts(pose_from(theta)),
                 final=round(final_r, 3), stars=int(np.clip(round(1 + 4 * final_r), 1, 5)),
                 success=bool(final_r >= m["success"]))
 
@@ -162,7 +169,7 @@ def generate(path, seed=0):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w") as fh:
         json.dump({"milestones": out, "rattle": [round(float(RATTLE[0]), 3), round(float(RATTLE[1]), 3)],
-                   "seed": seed}, fh)
+                   "L": L, "seed": seed}, fh)
     print(f"wrote {path}")
     return out
 
