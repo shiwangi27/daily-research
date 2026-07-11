@@ -1,16 +1,4 @@
-"""Render BabySim into a polished soft-toy (claymation/3-D) comic page — a self-contained
-canvas page (content-only HTML for the Artifact publisher). Bilateral body (two arms, two
-legs) with depth, and real anti-phase gait for walking/crawling. Kinematics + RL motion are
-driven by the learned joint angles from babysim/poses.json.
-
-    python3 -m babysim.render        # reads babysim/poses.json -> babysim/comic.html
-"""
-from __future__ import annotations
-
-import json
-import os
-
-HTML = r"""<title>BabySim — Learning to Move</title>
+<title>BabySim — Learning to Move</title>
 <style>
 :root{
   --bg:#fdeede; --bg2:#f6d9c4; --ink:#4a3a52; --muted:#9a8aa0; --accent:#ff7a6b;
@@ -79,7 +67,7 @@ HTML = r"""<title>BabySim — Learning to Move</title>
 </div></div>
 
 <script>
-const DATA=__DATA__, L=DATA.L, M=DATA.milestones;
+const DATA={"milestones": [{"key": "head", "week": 6, "title": "Lifts head", "badge": "HEAD CONTROL", "blurb": "On the mat, tummy down \u2014 the very first push against gravity.", "curve": [0.404, 0.655, 0.801, 0.849, 0.847, 0.826, 0.82, 0.816, 0.829, 0.829, 0.832, 0.833, 0.836, 0.821, 0.842, 0.837, 0.844, 0.846, 0.848, 0.849, 0.848, 0.847, 0.849, 0.847, 0.85, 0.851, 0.851, 0.849, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.85, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851, 0.851], "angles": {"px": 0.0, "py": 0.45, "torso": 1.4, "head": -1.3841, "shoulder": 2.3, "elbow": 0.5, "hip": 1.9, "knee": 0.6}, "final": 0.851, "stars": 4, "success": true}, {"key": "reach", "week": 18, "title": "Reaches for the rattle", "badge": "EYE\u2013HAND", "blurb": "On her back, knees up, arms shoot up toward a bright, jingly toy overhead.", "curve": [0.136, 0.504, 0.915, 0.973, 0.837, 0.84, 0.868, 0.906, 0.914, 0.922, 0.947, 0.957, 0.957, 0.966, 0.952, 0.952, 0.946, 0.963, 0.963, 0.97, 0.968, 0.959, 0.968, 0.974, 0.965, 0.97, 0.98, 0.962, 0.967, 0.963, 0.98, 0.98, 0.976, 0.979, 0.979, 0.972, 0.977, 0.984, 0.982, 0.979, 0.98, 0.985, 0.985, 0.979, 0.983, 0.982, 0.985, 0.98, 0.983, 0.983, 0.985, 0.982, 0.986, 0.983, 0.985, 0.98, 0.984, 0.984, 0.987, 0.981], "angles": {"px": 0.0, "py": 0.5, "torso": 1.5, "head": -0.95, "shoulder": -0.2, "elbow": 0.7499, "hip": 0.55, "knee": 1.5}, "final": 0.985, "stars": 5, "success": true}, {"key": "sit", "week": 28, "title": "Sits unsupported", "badge": "BALANCE", "blurb": "Spine stacks over the hips and \u2014 wobble, wobble \u2014 holds.", "curve": [0.005, 0.591, 0.809, 0.338, 0.199, 0.116, 0.165, 0.18, 0.307, 0.309, 0.373, 0.434, 0.479, 0.218, 0.633, 0.488, 0.674, 0.736, 0.819, 0.873, 0.834, 0.82, 0.907, 0.785, 0.911, 0.964, 1.0, 0.864, 0.955, 0.981, 0.999, 0.971, 0.981, 1.0, 0.985, 1.0, 0.996, 0.96, 0.999, 1.0, 1.0, 0.997, 1.0, 0.987, 0.997, 0.98, 0.998, 0.989, 0.997, 0.997, 0.981, 0.994, 0.929, 0.949, 0.997, 0.953, 0.976, 0.982, 0.988, 0.988], "angles": {"px": 0.0, "py": 0.9, "torso": 0.0154, "head": 0.0, "shoulder": 2.6, "elbow": 0.6, "hip": 1.5708, "knee": 1.5708}, "final": 0.996, "stars": 5, "success": true}, {"key": "crawl", "week": 34, "title": "Crawls", "badge": "ON THE MOVE", "blurb": "Up on all fours, rocking \u2014 then a hand forward, a knee forward, and off they go.", "curve": [0.611, 0.871, 0.979, 0.999, 1.0, 1.0, 1.0, 0.998, 1.0, 1.0, 1.0, 1.0, 1.0, 0.999, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "angles": {"px": 0.0, "py": 0.95, "torso": 1.32, "head": -1.254, "shoulder": 3.0, "elbow": 0.45, "hip": 3.0, "knee": 1.5}, "final": 1.0, "stars": 5, "success": true}, {"key": "stand", "week": 44, "title": "Pulls to stand", "badge": "UPRIGHT", "blurb": "Legs straighten, hips rise \u2014 the world looks different from up here.", "curve": [0.975, 0.893, 0.853, 0.819, 0.758, 0.757, 0.758, 0.67, 0.751, 0.733, 0.735, 0.733, 0.733, 0.733, 0.733, 0.733, 0.733, 0.733, 0.758, 0.754, 0.733, 0.74, 0.733, 0.751, 0.733, 0.729, 0.733, 0.737, 0.733, 0.733, 0.733, 0.733, 0.733, 0.74, 0.733, 0.734, 0.733, 0.748, 0.748, 0.733, 0.744, 0.756, 0.753, 0.755, 0.758, 0.771, 0.753, 0.744, 0.733, 0.756, 0.756, 0.758, 0.758, 0.756, 0.814, 0.843, 0.855, 0.813, 0.849, 0.878], "angles": {"px": 0.0, "py": 1.68, "torso": -0.2764, "head": 0.0, "shoulder": 2.9, "elbow": 0.3, "hip": 3.4361, "knee": -0.2}, "final": 0.876, "stars": 5, "success": true}, {"key": "walk", "week": 54, "title": "First steps", "badge": "LOCOMOTION", "blurb": "One foot forward, catch the fall, again \u2014 walking is controlled falling.", "curve": [0.533, 0.52, 0.566, 0.626, 0.651, 0.748, 0.747, 0.76, 0.733, 0.792, 0.749, 0.78, 0.844, 0.788, 0.795, 0.782, 0.844, 0.864, 0.879, 0.884, 0.871, 0.89, 0.893, 0.895, 0.89, 0.882, 0.876, 0.891, 0.891, 0.888, 0.886, 0.88, 0.883, 0.891, 0.895, 0.886, 0.892, 0.892, 0.897, 0.895, 0.897, 0.891, 0.886, 0.885, 0.892, 0.889, 0.875, 0.895, 0.897, 0.895, 0.896, 0.891, 0.895, 0.895, 0.893, 0.887, 0.892, 0.897, 0.895, 0.896], "angles": {"px": 0.0, "py": 1.66, "torso": 0.072, "head": 0.0, "shoulder": 2.7, "elbow": 0.3, "hip": 2.4864, "knee": 0.6161}, "final": 0.895, "stars": 5, "success": true}], "rattle": [1.784, 1.891], "L": {"torso": 1.5, "neck": 0.28, "head": 0.62, "uarm": 0.7, "farm": 0.62, "thigh": 0.85, "shin": 0.82}, "seed": 0}, L=DATA.L, M=DATA.milestones;
 const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
 const lerp=(a,b,t)=>a+(b-a)*t, TAU=Math.PI*2;
 const lerpAng=(A,B,t)=>{const o={};for(const k in A)o[k]=lerp(A[k],B[k]??A[k],t);return o;};
@@ -253,21 +241,3 @@ slider.addEventListener("input",e=>{label(+e.target.value);scrubTo(+e.target.val
 document.getElementById("playAll").addEventListener("click",playAll);
 selectSkill(0);
 </script>
-"""
-
-
-def render(poses_path="babysim/poses.json", out="babysim/comic.html"):
-    with open(poses_path) as fh:
-        data = json.load(fh)
-    for m in data["milestones"]:
-        m.pop("mastered", None)
-    html = HTML.replace("__DATA__", json.dumps(data))
-    os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
-    with open(out, "w") as fh:
-        fh.write(html)
-    print(f"wrote {out}  ({len(html)} bytes, {len(data['milestones'])} skills)")
-    return out
-
-
-if __name__ == "__main__":
-    render()

@@ -66,7 +66,7 @@ def clamp(a: dict) -> dict:
 
 # Targets read off hand-authored "mastered" poses, so each reward optimum is reachable and
 # looks right (uprightness/balance genuinely optimal, rather than fighting the fixed limbs).
-RATTLE = fk(_base(py=0.9, torso=0.3, hip=PI / 2, knee=PI / 2, shoulder=1.0, elbow=0.2))["hand"]
+RATTLE = fk(_base(py=0.5, torso=1.5, head=-0.95, hip=0.55, knee=1.5, shoulder=0.15, elbow=0.15))["hand"]
 SIT_COMX = float(com(fk(_base(py=0.9, hip=PI / 2, knee=PI / 2, shoulder=2.6, elbow=0.6, torso=0.0)))[0])
 
 
@@ -98,8 +98,8 @@ MILESTONES = [
          base=_base(py=0.45, torso=1.4, shoulder=2.3, elbow=0.5, hip=1.9, knee=0.6),
          control=["head"], reward=_reward(cost_head, 1.5), success=0.8),
     dict(key="reach", week=18, title="Reaches for the rattle", badge="EYE–HAND",
-         blurb="Propped up, an arm shoots out toward a bright, jingly target.",
-         base=_base(py=0.9, torso=0.3, hip=PI / 2, knee=PI / 2, shoulder=1.5, elbow=0.4),
+         blurb="On her back, knees up, arms shoot up toward a bright, jingly toy overhead.",
+         base=_base(py=0.5, torso=1.5, head=-0.95, hip=0.55, knee=1.5, shoulder=1.3, elbow=0.4),
          control=["shoulder", "elbow"], reward=_reward(cost_reach, 1.0), success=0.75),
     dict(key="sit", week=28, title="Sits unsupported", badge="BALANCE",
          blurb="Spine stacks over the hips and — wobble, wobble — holds.",
