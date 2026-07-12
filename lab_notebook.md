@@ -5,6 +5,31 @@ Written by the lead researcher, with the error analyst's interpretation folded i
 
 ---
 
+## 2026-07-12 — BabySim physics: real dynamics + learning to stand (RL)
+
+BabySim moves from *kinematic posing* to *real dynamics*. First tried an articulated
+Position-Based-Dynamics soft body (point masses + bones + angle muscles) — it was unstable
+(interacting angle constraints blew up). Pivoted to the robust, textbook substrate: a
+**torque-controlled inverted pendulum** in reduced coordinates (`babysim/physics.py`), the
+standard balance-control task.
+
+- **Real gravity:** uncontrolled, she topples (fall at step ~59). A hand-tuned PD "ankle
+  muscle" balances and recovers from a shove — so the dynamics are genuine, not scripted.
+- **Learning to stand (REINFORCE):** a linear torque policy `τ = W·[sinθ, cosθ, ω] + b`
+  trained by policy gradient goes from toppling (~71 steps) to balancing the full horizon
+  (**200/200**), discovering `W ≈ [−43 on lean, −24 on angular velocity]` — an LQR-style
+  balance controller, learned from scratch against gravity.
+- **RL lessons (again):** REINFORCE needed a much larger LR/exploration than intuition
+  suggested, because the useful control gains are large (~30–40) while the informative state
+  feature (lean) is small — slow to grow without enough step size. Same "optimizer stability
+  vs reward design" theme as the kinematic milestones.
+
+This is the seed of the physics RL track. Next: render the *learned* balance in the comic
+(the baby genuinely wobbling and catching herself), then extend to a multi-link body and the
+curriculum-gated REINFORCE→PPO→GRPO comparisons.
+
+---
+
 ## 2026-07-10 — BabySim: a developmental-RL environment + comic-book visualization
 
 **New direction (user's pick of RL problem):** simulate how a baby learns motor skills week
