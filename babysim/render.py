@@ -67,6 +67,7 @@ HTML = r"""<title>BabySim — Learning to Move</title>
     </div>
   </div>
   <div class="controls"><button class="b play" id="playAll" type="button">▶ Play the first year</button>
+    <button class="b" id="balance" type="button">⚖️ Balance (live physics)</button>
     <span id="skills" style="display:flex;flex-wrap:wrap;gap:9px"></span></div>
   <div class="slider"><div class="row">
     <input type="range" id="week" min="1" max="56" value="6" step="1" aria-label="Week">
@@ -247,8 +248,25 @@ function drawBaby(rg,fit,opts){opts=opts||{};const P=rigPoints(rg,fit),s=fit.s;P
   ctx.beginPath();ctx.arc(ex+hr*0.16,ey+hr*0.2,hr*0.22,0.15*Math.PI,0.85*Math.PI);ctx.stroke();
   ctx.restore();
 }
-function paint(rg,opts){const fit=fitter(cv.width,cv.height,46);ctx.imageSmoothingEnabled=true;
-  drawScene(fit);drawBaby(rg,fit,opts||{});}
+function paint(rg,opts){opts=opts||{};const fit=fitter(cv.width,cv.height,46);ctx.imageSmoothingEnabled=true;
+  drawScene(fit);
+  if(opts.leanAngle){const pv=fit.T([rg.px,0]);              // tilt the whole body about the feet
+    ctx.save();ctx.translate(pv[0],pv[1]);ctx.rotate(opts.leanAngle);ctx.translate(-pv[0],-pv[1]);
+    drawBaby(rg,fit,opts);ctx.restore();}
+  else drawBaby(rg,fit,opts);}
+
+// ---------- live physics: an inverted-pendulum balance driven by the LEARNED policy ----------
+const PH=DATA.physics;                 // {W:[3], b, L, g, dt, tau_max, damp, fall}
+let bal={theta:0,omega:0,down:0};
+function balStep(){
+  const s=[Math.sin(bal.theta),Math.cos(bal.theta),bal.omega];
+  let tau=PH.W[0]*s[0]+PH.W[1]*s[1]+PH.W[2]*s[2]+PH.b;
+  tau=Math.max(-PH.tau_max,Math.min(PH.tau_max,tau));
+  const acc=(PH.g/PH.L)*Math.sin(bal.theta)+tau/(PH.L*PH.L)-PH.damp*bal.omega;
+  bal.omega+=acc*PH.dt; bal.theta+=bal.omega*PH.dt;
+  if(Math.random()<0.012) bal.omega+=(Math.random()<0.5?-1:1)*(0.7+Math.random()*0.9); // a shove
+  if(Math.abs(bal.theta)>PH.fall){bal.down++; if(bal.down>45){bal.theta=0;bal.omega=0;bal.down=0;}} // fell -> gets back up
+}
 
 // ---------- engine ----------
 let cur=0,raf=null,t0=null;
@@ -293,6 +311,15 @@ function scrubTo(w){cur=-1;cancelAnimationFrame(raf);t0=null;floorX=0;
     setInfo(w,on?ns.title:"Developing…",on?{t:ns.success?"Mastered":"Learning",c:ns.success?"master":"learn"}:null,on?stars(ns):"",on?ns.blurb:"between milestones — the body is interpolated");
     raf=requestAnimationFrame(fr);})(0);}
 function label(w){document.getElementById("wkNum").textContent=Math.round(w);document.getElementById("wkSkill").textContent=nearest(w).key;}
+function balanceMode(){cur=-1;cancelAnimationFrame(raf);t0=null;floorX=0;bal={theta:0.05,omega:0,down:0};
+  document.querySelectorAll("#skills .b").forEach(b=>b.setAttribute("aria-current","false"));
+  const stand=M.find(m=>m.key==="stand").angles;
+  (function fr(ts){for(let k=0;k<2;k++)balStep();
+    const st=bal.down?{t:"caught a fall!",c:"learn"}:{t:"live physics",c:"master"};
+    paint(staticRig(stand),{leanAngle:bal.theta});
+    setInfo(52,"Balancing on her own",st,"",
+      "Real gravity + an ankle torque the baby LEARNED with REINFORCE — she wobbles and catches herself.");
+    raf=requestAnimationFrame(fr);})(0);}
 
 const sk=document.getElementById("skills");
 M.forEach((m,i)=>{const b=document.createElement("button");b.className="b";b.type="button";b.textContent=m.title;
@@ -301,6 +328,7 @@ document.getElementById("ticks").innerHTML=M.map(m=>"<span>"+m.week+"</span>").j
 const slider=document.getElementById("week");slider.max=M[M.length-1].week+2;
 slider.addEventListener("input",e=>{label(+e.target.value);scrubTo(+e.target.value);});
 document.getElementById("playAll").addEventListener("click",playAll);
+document.getElementById("balance").addEventListener("click",balanceMode);
 selectSkill(0);
 </script>
 """
@@ -311,6 +339,16 @@ def render(poses_path="babysim/poses.json", out="babysim/comic.html"):
         data = json.load(fh)
     for m in data["milestones"]:
         m.pop("mastered", None)
+
+    # Train the balance policy and embed it so the page can run the physics live.
+    from . import physics
+    W, b, _ = physics.train_balance(seed=0)
+    p = physics.InvertedPendulum()
+    data["physics"] = {"W": [round(float(x), 4) for x in W], "b": round(float(b), 4),
+                       "L": p.L, "g": p.g, "dt": p.dt, "tau_max": p.tau_max,
+                       "damp": p.damp, "fall": p.fall_angle}
+    print(f"embedded balance policy W={data['physics']['W']}")
+
     html = HTML.replace("__DATA__", json.dumps(data))
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     with open(out, "w") as fh:

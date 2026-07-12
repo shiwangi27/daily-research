@@ -55,6 +55,7 @@
     </div>
   </div>
   <div class="controls"><button class="b play" id="playAll" type="button">▶ Play the first year</button>
+    <button class="b" id="balance" type="button">⚖️ Balance (live physics)</button>
     <span id="skills" style="display:flex;flex-wrap:wrap;gap:9px"></span></div>
   <div class="slider"><div class="row">
     <input type="range" id="week" min="1" max="56" value="6" step="1" aria-label="Week">
@@ -67,7 +68,7 @@
 </div></div>
 
 <script>
-const DATA={"milestones": [{"key": "head", "week": 6, "title": "Lifts head", "badge": "HEAD CONTROL", "blurb": "On the mat, tummy down \u2014 the very first push against gravity.", "curve": [0.848, 0.973, 1.0, 0.998, 0.997, 0.999, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "angles": {"px": 0.0, "py": 0.3, "torso": 1.4, "head": -1.8, "shoulder": 2.3, "elbow": 0.5, "hip": 1.7, "knee": 0.6}, "final": 1.0, "stars": 5, "success": true}, {"key": "reach", "week": 18, "title": "Reaches for the rattle", "badge": "EYE\u2013HAND", "blurb": "On her back, knees up, arms shoot up toward a bright, jingly toy overhead.", "curve": [0.336, 0.672, 0.941, 0.989, 0.901, 0.921, 0.937, 0.952, 0.954, 0.957, 0.971, 0.977, 0.978, 0.983, 0.975, 0.975, 0.972, 0.981, 0.981, 0.985, 0.984, 0.98, 0.985, 0.988, 0.984, 0.986, 0.992, 0.982, 0.985, 0.983, 0.992, 0.992, 0.99, 0.992, 0.991, 0.988, 0.991, 0.994, 0.993, 0.992, 0.992, 0.995, 0.995, 0.992, 0.994, 0.993, 0.994, 0.993, 0.994, 0.994, 0.995, 0.993, 0.995, 0.994, 0.995, 0.992, 0.994, 0.994, 0.995, 0.993], "angles": {"px": 0.0, "py": 0.28, "torso": 1.55, "head": -0.35, "shoulder": -0.2, "elbow": 0.6686, "hip": 0.4, "knee": 1.4}, "final": 0.995, "stars": 5, "success": true}, {"key": "sit", "week": 28, "title": "Sits unsupported", "badge": "BALANCE", "blurb": "Spine stacks over the hips and \u2014 wobble, wobble \u2014 holds.", "curve": [0.041, 0.729, 0.882, 0.517, 0.369, 0.267, 0.334, 0.35, 0.489, 0.492, 0.551, 0.599, 0.639, 0.397, 0.757, 0.647, 0.789, 0.831, 0.886, 0.921, 0.896, 0.885, 0.943, 0.864, 0.946, 0.978, 1.0, 0.916, 0.973, 0.988, 1.0, 0.983, 0.989, 1.0, 0.991, 1.0, 0.998, 0.976, 0.999, 1.0, 1.0, 0.998, 1.0, 0.992, 0.998, 0.988, 0.999, 0.993, 0.998, 0.998, 0.989, 0.996, 0.957, 0.969, 0.998, 0.972, 0.986, 0.989, 0.993, 0.993], "angles": {"px": 0.0, "py": 0.32, "torso": 0.0155, "head": 0.0, "shoulder": 2.5, "elbow": 0.7, "hip": 1.5708, "knee": 0.15}, "final": 0.998, "stars": 5, "success": true}, {"key": "crawl", "week": 34, "title": "Crawls", "badge": "ON THE MOVE", "blurb": "Up on all fours, rocking \u2014 then a hand forward, a knee forward, and off they go.", "curve": [0.744, 0.929, 0.992, 1.0, 0.998, 0.999, 1.0, 0.999, 1.0, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 1.0, 1.0, 0.999, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "angles": {"px": 0.0, "py": 0.64, "torso": 1.3, "head": -1.6704, "shoulder": 3.0, "elbow": 0.5, "hip": 3.0, "knee": 1.5}, "final": 1.0, "stars": 5, "success": true}, {"key": "stand", "week": 44, "title": "Pulls to stand", "badge": "UPRIGHT", "blurb": "Legs straighten, hips rise \u2014 the world looks different from up here.", "curve": [0.987, 0.92, 0.861, 0.802, 0.774, 0.771, 0.775, 0.725, 0.768, 0.764, 0.773, 0.764, 0.764, 0.764, 0.764, 0.764, 0.764, 0.764, 0.774, 0.772, 0.764, 0.766, 0.764, 0.772, 0.764, 0.763, 0.764, 0.764, 0.764, 0.764, 0.764, 0.768, 0.764, 0.766, 0.764, 0.781, 0.764, 0.773, 0.771, 0.764, 0.786, 0.811, 0.772, 0.821, 0.842, 0.904, 0.925, 0.945, 0.933, 0.97, 0.978, 0.996, 0.989, 0.996, 1.0, 0.995, 0.999, 0.963, 0.996, 0.999], "angles": {"px": 0.0, "py": 1.16, "torso": -0.0238, "head": 0.0, "shoulder": 2.9, "elbow": 0.3, "hip": 3.1997, "knee": -0.2}, "final": 0.982, "stars": 5, "success": true}, {"key": "walk", "week": 54, "title": "First steps", "badge": "LOCOMOTION", "blurb": "One foot forward, catch the fall, again \u2014 walking is controlled falling.", "curve": [0.566, 0.611, 0.691, 0.749, 0.771, 0.857, 0.838, 0.851, 0.827, 0.868, 0.827, 0.856, 0.897, 0.864, 0.872, 0.863, 0.914, 0.923, 0.933, 0.931, 0.926, 0.938, 0.94, 0.939, 0.937, 0.933, 0.929, 0.94, 0.937, 0.938, 0.936, 0.931, 0.932, 0.939, 0.941, 0.933, 0.936, 0.939, 0.941, 0.939, 0.942, 0.939, 0.936, 0.934, 0.938, 0.937, 0.925, 0.94, 0.942, 0.94, 0.941, 0.938, 0.94, 0.941, 0.94, 0.935, 0.938, 0.942, 0.941, 0.941], "angles": {"px": 0.0, "py": 1.14, "torso": 0.0725, "head": 0.0, "shoulder": 2.7, "elbow": 0.3, "hip": 2.4201, "knee": 0.6208}, "final": 0.94, "stars": 5, "success": true}], "rattle": [1.179, 1.225], "L": {"torso": 1.02, "neck": 0.2, "head": 0.52, "uarm": 0.5, "farm": 0.44, "thigh": 0.6, "shin": 0.56}, "seed": 0}, L=DATA.L, M=DATA.milestones;
+const DATA={"milestones": [{"key": "head", "week": 6, "title": "Lifts head", "badge": "HEAD CONTROL", "blurb": "On the mat, tummy down \u2014 the very first push against gravity.", "curve": [0.848, 0.973, 1.0, 0.998, 0.997, 0.999, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "angles": {"px": 0.0, "py": 0.3, "torso": 1.4, "head": -1.8, "shoulder": 2.3, "elbow": 0.5, "hip": 1.7, "knee": 0.6}, "final": 1.0, "stars": 5, "success": true}, {"key": "reach", "week": 18, "title": "Reaches for the rattle", "badge": "EYE\u2013HAND", "blurb": "On her back, knees up, arms shoot up toward a bright, jingly toy overhead.", "curve": [0.336, 0.672, 0.941, 0.989, 0.901, 0.921, 0.937, 0.952, 0.954, 0.957, 0.971, 0.977, 0.978, 0.983, 0.975, 0.975, 0.972, 0.981, 0.981, 0.985, 0.984, 0.98, 0.985, 0.988, 0.984, 0.986, 0.992, 0.982, 0.985, 0.983, 0.992, 0.992, 0.99, 0.992, 0.991, 0.988, 0.991, 0.994, 0.993, 0.992, 0.992, 0.995, 0.995, 0.992, 0.994, 0.993, 0.994, 0.993, 0.994, 0.994, 0.995, 0.993, 0.995, 0.994, 0.995, 0.992, 0.994, 0.994, 0.995, 0.993], "angles": {"px": 0.0, "py": 0.28, "torso": 1.55, "head": -0.35, "shoulder": -0.2, "elbow": 0.6686, "hip": 0.4, "knee": 1.4}, "final": 0.995, "stars": 5, "success": true}, {"key": "sit", "week": 28, "title": "Sits unsupported", "badge": "BALANCE", "blurb": "Spine stacks over the hips and \u2014 wobble, wobble \u2014 holds.", "curve": [0.041, 0.729, 0.882, 0.517, 0.369, 0.267, 0.334, 0.35, 0.489, 0.492, 0.551, 0.599, 0.639, 0.397, 0.757, 0.647, 0.789, 0.831, 0.886, 0.921, 0.896, 0.885, 0.943, 0.864, 0.946, 0.978, 1.0, 0.916, 0.973, 0.988, 1.0, 0.983, 0.989, 1.0, 0.991, 1.0, 0.998, 0.976, 0.999, 1.0, 1.0, 0.998, 1.0, 0.992, 0.998, 0.988, 0.999, 0.993, 0.998, 0.998, 0.989, 0.996, 0.957, 0.969, 0.998, 0.972, 0.986, 0.989, 0.993, 0.993], "angles": {"px": 0.0, "py": 0.32, "torso": 0.0155, "head": 0.0, "shoulder": 2.5, "elbow": 0.7, "hip": 1.5708, "knee": 0.15}, "final": 0.998, "stars": 5, "success": true}, {"key": "crawl", "week": 34, "title": "Crawls", "badge": "ON THE MOVE", "blurb": "Up on all fours, rocking \u2014 then a hand forward, a knee forward, and off they go.", "curve": [0.744, 0.929, 0.992, 1.0, 0.998, 0.999, 1.0, 0.999, 1.0, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 1.0, 1.0, 0.999, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "angles": {"px": 0.0, "py": 0.64, "torso": 1.3, "head": -1.6704, "shoulder": 3.0, "elbow": 0.5, "hip": 3.0, "knee": 1.5}, "final": 1.0, "stars": 5, "success": true}, {"key": "stand", "week": 44, "title": "Pulls to stand", "badge": "UPRIGHT", "blurb": "Legs straighten, hips rise \u2014 the world looks different from up here.", "curve": [0.987, 0.92, 0.861, 0.802, 0.774, 0.771, 0.775, 0.725, 0.768, 0.764, 0.773, 0.764, 0.764, 0.764, 0.764, 0.764, 0.764, 0.764, 0.774, 0.772, 0.764, 0.766, 0.764, 0.772, 0.764, 0.763, 0.764, 0.764, 0.764, 0.764, 0.764, 0.768, 0.764, 0.766, 0.764, 0.781, 0.764, 0.773, 0.771, 0.764, 0.786, 0.811, 0.772, 0.821, 0.842, 0.904, 0.925, 0.945, 0.933, 0.97, 0.978, 0.996, 0.989, 0.996, 1.0, 0.995, 0.999, 0.963, 0.996, 0.999], "angles": {"px": 0.0, "py": 1.16, "torso": -0.0238, "head": 0.0, "shoulder": 2.9, "elbow": 0.3, "hip": 3.1997, "knee": -0.2}, "final": 0.982, "stars": 5, "success": true}, {"key": "walk", "week": 54, "title": "First steps", "badge": "LOCOMOTION", "blurb": "One foot forward, catch the fall, again \u2014 walking is controlled falling.", "curve": [0.566, 0.611, 0.691, 0.749, 0.771, 0.857, 0.838, 0.851, 0.827, 0.868, 0.827, 0.856, 0.897, 0.864, 0.872, 0.863, 0.914, 0.923, 0.933, 0.931, 0.926, 0.938, 0.94, 0.939, 0.937, 0.933, 0.929, 0.94, 0.937, 0.938, 0.936, 0.931, 0.932, 0.939, 0.941, 0.933, 0.936, 0.939, 0.941, 0.939, 0.942, 0.939, 0.936, 0.934, 0.938, 0.937, 0.925, 0.94, 0.942, 0.94, 0.941, 0.938, 0.94, 0.941, 0.94, 0.935, 0.938, 0.942, 0.941, 0.941], "angles": {"px": 0.0, "py": 1.14, "torso": 0.0725, "head": 0.0, "shoulder": 2.7, "elbow": 0.3, "hip": 2.4201, "knee": 0.6208}, "final": 0.94, "stars": 5, "success": true}], "rattle": [1.179, 1.225], "L": {"torso": 1.02, "neck": 0.2, "head": 0.52, "uarm": 0.5, "farm": 0.44, "thigh": 0.6, "shin": 0.56}, "seed": 0, "physics": {"W": [-43.0293, 1.9128, -24.0383], "b": 0.4511, "L": 1.7, "g": 9.8, "dt": 0.02, "tau_max": 6.0, "damp": 0.05, "fall": 1.2}}, L=DATA.L, M=DATA.milestones;
 const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
 const lerp=(a,b,t)=>a+(b-a)*t, TAU=Math.PI*2;
 const lerpAng=(A,B,t)=>{const o={};for(const k in A)o[k]=lerp(A[k],B[k]??A[k],t);return o;};
@@ -235,8 +236,25 @@ function drawBaby(rg,fit,opts){opts=opts||{};const P=rigPoints(rg,fit),s=fit.s;P
   ctx.beginPath();ctx.arc(ex+hr*0.16,ey+hr*0.2,hr*0.22,0.15*Math.PI,0.85*Math.PI);ctx.stroke();
   ctx.restore();
 }
-function paint(rg,opts){const fit=fitter(cv.width,cv.height,46);ctx.imageSmoothingEnabled=true;
-  drawScene(fit);drawBaby(rg,fit,opts||{});}
+function paint(rg,opts){opts=opts||{};const fit=fitter(cv.width,cv.height,46);ctx.imageSmoothingEnabled=true;
+  drawScene(fit);
+  if(opts.leanAngle){const pv=fit.T([rg.px,0]);              // tilt the whole body about the feet
+    ctx.save();ctx.translate(pv[0],pv[1]);ctx.rotate(opts.leanAngle);ctx.translate(-pv[0],-pv[1]);
+    drawBaby(rg,fit,opts);ctx.restore();}
+  else drawBaby(rg,fit,opts);}
+
+// ---------- live physics: an inverted-pendulum balance driven by the LEARNED policy ----------
+const PH=DATA.physics;                 // {W:[3], b, L, g, dt, tau_max, damp, fall}
+let bal={theta:0,omega:0,down:0};
+function balStep(){
+  const s=[Math.sin(bal.theta),Math.cos(bal.theta),bal.omega];
+  let tau=PH.W[0]*s[0]+PH.W[1]*s[1]+PH.W[2]*s[2]+PH.b;
+  tau=Math.max(-PH.tau_max,Math.min(PH.tau_max,tau));
+  const acc=(PH.g/PH.L)*Math.sin(bal.theta)+tau/(PH.L*PH.L)-PH.damp*bal.omega;
+  bal.omega+=acc*PH.dt; bal.theta+=bal.omega*PH.dt;
+  if(Math.random()<0.012) bal.omega+=(Math.random()<0.5?-1:1)*(0.7+Math.random()*0.9); // a shove
+  if(Math.abs(bal.theta)>PH.fall){bal.down++; if(bal.down>45){bal.theta=0;bal.omega=0;bal.down=0;}} // fell -> gets back up
+}
 
 // ---------- engine ----------
 let cur=0,raf=null,t0=null;
@@ -281,6 +299,15 @@ function scrubTo(w){cur=-1;cancelAnimationFrame(raf);t0=null;floorX=0;
     setInfo(w,on?ns.title:"Developing…",on?{t:ns.success?"Mastered":"Learning",c:ns.success?"master":"learn"}:null,on?stars(ns):"",on?ns.blurb:"between milestones — the body is interpolated");
     raf=requestAnimationFrame(fr);})(0);}
 function label(w){document.getElementById("wkNum").textContent=Math.round(w);document.getElementById("wkSkill").textContent=nearest(w).key;}
+function balanceMode(){cur=-1;cancelAnimationFrame(raf);t0=null;floorX=0;bal={theta:0.05,omega:0,down:0};
+  document.querySelectorAll("#skills .b").forEach(b=>b.setAttribute("aria-current","false"));
+  const stand=M.find(m=>m.key==="stand").angles;
+  (function fr(ts){for(let k=0;k<2;k++)balStep();
+    const st=bal.down?{t:"caught a fall!",c:"learn"}:{t:"live physics",c:"master"};
+    paint(staticRig(stand),{leanAngle:bal.theta});
+    setInfo(52,"Balancing on her own",st,"",
+      "Real gravity + an ankle torque the baby LEARNED with REINFORCE — she wobbles and catches herself.");
+    raf=requestAnimationFrame(fr);})(0);}
 
 const sk=document.getElementById("skills");
 M.forEach((m,i)=>{const b=document.createElement("button");b.className="b";b.type="button";b.textContent=m.title;
@@ -289,5 +316,6 @@ document.getElementById("ticks").innerHTML=M.map(m=>"<span>"+m.week+"</span>").j
 const slider=document.getElementById("week");slider.max=M[M.length-1].week+2;
 slider.addEventListener("input",e=>{label(+e.target.value);scrubTo(+e.target.value);});
 document.getElementById("playAll").addEventListener("click",playAll);
+document.getElementById("balance").addEventListener("click",balanceMode);
 selectSkill(0);
 </script>
