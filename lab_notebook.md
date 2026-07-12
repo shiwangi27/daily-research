@@ -5,6 +5,34 @@ Written by the lead researcher, with the error analyst's interpretation folded i
 
 ---
 
+## 2026-07-12 — Physics in the loop + first RL hyperparameter sweep (model tuning begins)
+
+The learned balance is now **live in the comic** (`⚖️ Balance` mode): the page runs the
+inverted-pendulum dynamics in JS driven by the REINFORCE-learned ankle torque, with random
+shoves — she wobbles, catches herself, and gets back up if she topples. This is the pivot from
+"building the environment" to **tuning the model**. First sweep on the balance task
+(mean balanced steps over the last 10 iters, out of 200):
+
+| knob                | values → result                                  | takeaway |
+|---------------------|--------------------------------------------------|----------|
+| **learning rate**   | 0.2→92 · 0.6→132 · 1.2→192 · 2.5→200             | too small = under-trained; needs a big LR (gains are large) |
+| **exploration σ**   | 1.0→47 · 2.0→174 · 3.0→192 · 5.0→160             | clear sweet spot ~3; too little never finds it, too much is noisy |
+| **batch size**      | 16→150 · 48→192 · 128→189                        | gradient variance matters; 48 enough, diminishing returns after |
+| **seed robustness** | lr1.2/σ3 across 4 seeds → [192,175,197,191] (189) | stable, not a lucky seed |
+
+- **Error-analyst read:** the σ curve is the interesting one — it's a genuine
+  exploration/exploitation trade-off, not just "more is better." And LR sensitivity echoes the
+  recurring theme: the useful control gains are large (~40) so the policy needs aggressive
+  updates to reach them.
+
+**The daily model-tuning loop (one knob/day) from here:** reward shaping (sparse vs shaped),
+policy architecture (linear vs a tiny MLP → nonlinear control), **algorithm** (REINFORCE vs
+PPO vs GRPO — sample efficiency & stability), harder tasks (2-link body: ankle+knee+hip),
+and **curriculum gating** (must balance before it learns to step). Each is a clean one-variable
+experiment with a crisp metric (balanced steps / episodes-to-solve).
+
+---
+
 ## 2026-07-12 — BabySim physics: real dynamics + learning to stand (RL)
 
 BabySim moves from *kinematic posing* to *real dynamics*. First tried an articulated
