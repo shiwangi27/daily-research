@@ -129,7 +129,7 @@ function walkRig(a,p){const S=0.52,lift=0.28,ph=TAU*p,py=a.py-0.09+0.03*Math.sin
     rg.arms.push({shoulder:a.shoulder+0.3*Math.sin(ph+(o?0:Math.PI)),elbow:a.elbow,far:!!o});});
   return {rig:rg,scroll:1};}
 
-function crawlRig(a,p){const S=0.28,lift=0.16,ph=TAU*p;
+function crawlRig(a,p){const S=0.2,lift=0.07,ph=TAU*p;
   const rg={px:a.px,py:a.py,torso:a.torso,head:a.head+0.05*Math.sin(TAU*p),legs:[],arms:[]};
   const b=body(rg);
   [1,0].forEach(near=>{const o=near?0:1;
