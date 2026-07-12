@@ -129,13 +129,21 @@ function walkRig(a,p){const S=0.52,lift=0.28,ph=TAU*p,py=a.py-0.09+0.03*Math.sin
     rg.arms.push({shoulder:a.shoulder+0.3*Math.sin(ph+(o?0:Math.PI)),elbow:a.elbow,far:!!o});});
   return {rig:rg,scroll:1};}
 
-function crawlRig(a,p){const S=0.2,lift=0.07,ph=TAU*p;
-  const rg={px:a.px,py:a.py,torso:a.torso,head:a.head+0.05*Math.sin(TAU*p),legs:[],arms:[]};
+// crawl on HANDS AND KNEES: knees planted on the floor under the hips (low body), shins back,
+// hands planted forward; diagonally-alternating limbs plant & slide, then swing forward.
+function gaitXY(x0,phase,S,lift){let u=((phase/TAU)%1+1)%1,x,y;
+  if(u<0.5){x=S*(0.5-u/0.5);y=0;} else{const f=(u-0.5)/0.5;x=S*(f-0.5);y=lift*Math.sin(Math.PI*f);}
+  return [x0+x,y];}
+function crawlRig(a,p){const ph=TAU*p,py=a.py-0.19;      // lower the hips -> on the knees, not bear-crawl
+  const rg={px:a.px,py:py,torso:a.torso,head:a.head+0.05*Math.sin(TAU*p),legs:[],arms:[]};
   const b=body(rg);
   [1,0].forEach(near=>{const o=near?0:1;
-    const kf=contact(a.px-0.02,ph+(o?Math.PI:0),S,lift),ikL=ik2([a.px,a.py],kf,L.thigh,L.shin,"y");
-    rg.legs.push({ik:1,kneeW:ikL.mid,footW:ikL.end,far:!!o});
-    const hf=contact(b.chest[0]+0.16,ph+(o?0:Math.PI),S,lift),ikA=ik2(b.chest,hf,L.uarm,L.farm,"y");
+    // stagger near/far so BOTH limbs read: near forward+under, far trailing back; + anti-phase.
+    const knee=gaitXY(a.px+(o?-0.09:0.15),ph+(o?Math.PI:0),0.16,0.11);
+    const foot=[knee[0]-0.32,0.03];                      // shin trails back along the floor
+    rg.legs.push({ik:1,kneeW:knee,footW:foot,far:!!o});
+    const hand=gaitXY(b.chest[0]+(o?-0.03:0.17),ph+(o?0:Math.PI),0.16,0.11);
+    const ikA=ik2(b.chest,hand,L.uarm,L.farm,"y");
     rg.arms.push({ik:1,elbowW:ikA.mid,handW:ikA.end,far:!!o});});
   return {rig:rg,scroll:1};}
 
