@@ -1,0 +1,413 @@
+<title>BabySim ↔ LLM RL — one policy-gradient spine</title>
+<style>
+  :root{
+    --bg:#f7f4ef; --surface:#fffdf9; --raise:#fdf9f2; --ink:#2a2530; --muted:#7c7488;
+    --line:#e6ded3; --coral:#e0563d; --coral-soft:#f6d9d0; --teal:#0c8b93; --teal-soft:#cfe9ea;
+    --code:#efeae1; --shadow:0 14px 34px -22px rgba(70,45,55,.55);
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#17141d; --surface:#211e29; --raise:#262230; --ink:#efe9f2; --muted:#a79eb4;
+    --line:#332e3c; --coral:#ff8574; --coral-soft:#3a2620; --teal:#34c6ce; --teal-soft:#123033;
+    --code:#1e1b26; --shadow:0 16px 40px -22px rgba(0,0,0,.7);
+  }}
+  :root[data-theme="light"]{
+    --bg:#f7f4ef; --surface:#fffdf9; --raise:#fdf9f2; --ink:#2a2530; --muted:#7c7488;
+    --line:#e6ded3; --coral:#e0563d; --coral-soft:#f6d9d0; --teal:#0c8b93; --teal-soft:#cfe9ea;
+    --code:#efeae1; --shadow:0 14px 34px -22px rgba(70,45,55,.55);
+  }
+  :root[data-theme="dark"]{
+    --bg:#17141d; --surface:#211e29; --raise:#262230; --ink:#efe9f2; --muted:#a79eb4;
+    --line:#332e3c; --coral:#ff8574; --coral-soft:#3a2620; --teal:#34c6ce; --teal-soft:#123033;
+    --code:#1e1b26; --shadow:0 16px 40px -22px rgba(0,0,0,.7);
+  }
+  *{box-sizing:border-box}
+  body,.doc{margin:0}
+  .doc{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;
+    padding:clamp(20px,5vw,64px) clamp(16px,5vw,40px);}
+  .wrap{max-width:940px;margin:0 auto}
+  .prose{max-width:66ch}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--coral);font-weight:600}
+  h1{font-family:var(--sans);font-weight:800;letter-spacing:-.02em;text-wrap:balance;
+    font-size:clamp(2rem,5.4vw,3.3rem);line-height:1.03;margin:.28em 0 .3em}
+  h1 .teal{color:var(--teal)} h1 .coral{color:var(--coral)}
+  h2{font-family:var(--sans);font-weight:750;letter-spacing:-.01em;font-size:clamp(1.35rem,3vw,1.9rem);
+    margin:0 0 .1em;text-wrap:balance}
+  h2 .num{font-family:var(--mono);font-size:.62em;color:var(--muted);font-weight:600;margin-right:.6em}
+  .lede{font-size:clamp(1.05rem,2.2vw,1.28rem);color:var(--ink);max-width:60ch}
+  .lede b{color:var(--coral)} .lede .t{color:var(--teal);font-weight:600}
+  p{margin:.7em 0}
+  section{margin-top:clamp(40px,7vw,76px)}
+  .kicker{color:var(--muted);max-width:64ch;margin-top:.2em}
+  code,.m{font-family:var(--mono);font-size:.9em;background:var(--code);padding:.08em .38em;border-radius:5px}
+  .m{background:none;padding:0;color:var(--muted)}
+  figure{margin:26px 0 8px;background:var(--surface);border:1px solid var(--line);border-radius:16px;
+    padding:clamp(14px,3vw,26px);box-shadow:var(--shadow);overflow-x:auto}
+  figcaption{font-size:.86rem;color:var(--muted);margin-top:14px;max-width:70ch;font-family:var(--sans)}
+  figcaption b{color:var(--ink);font-weight:650}
+  svg.dia{display:block;width:100%;height:auto;color:var(--ink);min-width:520px}
+  svg.dia text{fill:currentColor;font-family:var(--mono)}
+  .legend{display:flex;gap:20px;flex-wrap:wrap;align-items:center;font-family:var(--mono);
+    font-size:.78rem;color:var(--muted);margin:18px 0 0}
+  .legend .k{display:inline-flex;align-items:center;gap:8px}
+  .dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .dot.c{background:var(--coral)} .dot.t{background:var(--teal)} .dot.n{background:var(--muted)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+  @media (max-width:680px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .card.c{border-top:3px solid var(--coral)} .card.t{border-top:3px solid var(--teal)}
+  .card h3{margin:.1em 0 .4em;font-size:1.05rem;font-family:var(--mono);letter-spacing:-.01em}
+  .card.c h3{color:var(--coral)} .card.t h3{color:var(--teal)}
+  .card ul{margin:.3em 0 0;padding-left:1.1em} .card li{margin:.28em 0}
+  table{border-collapse:collapse;width:100%;margin-top:18px;font-size:.92rem;min-width:560px}
+  .twrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  thead th{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  tbody tr:last-child td{border-bottom:none}
+  td.role{font-family:var(--mono);color:var(--ink);font-weight:600;white-space:nowrap}
+  .cor{color:var(--coral)} .tea{color:var(--teal)}
+  .eq{font-family:var(--mono);background:var(--raise);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:20px 0;font-size:clamp(.9rem,2vw,1.05rem);overflow-x:auto;text-align:center}
+  .eq b.c{color:var(--coral)} .eq b.t{color:var(--teal)}
+  .note{border-left:3px solid var(--coral);background:var(--raise);border-radius:0 10px 10px 0;
+    padding:12px 16px;margin:18px 0;font-size:.95rem}
+  .note.t{border-left-color:var(--teal)}
+  .foot{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);
+    font-size:.85rem;font-family:var(--mono)}
+  a{color:var(--coral)}
+</style>
+
+<div class="doc"><div class="wrap">
+
+  <header>
+    <div class="eyebrow">BabySim · architecture note</div>
+    <h1>One learning loop, two bodies:<br>a <span class="coral">baby</span> and an <span class="teal">LLM</span></h1>
+    <p class="lede">BabySim's baby learns to balance with <b>REINFORCE</b>. The same policy-gradient
+      loop — the identical estimator — is how <span class="t">GPT, Claude, and DeepSeek</span> are
+      post-trained with RLHF and GRPO. What changes between them isn't the algorithm. It's the
+      <b>policy network</b>: three weights here, a transformer there.</p>
+    <div class="legend" role="img" aria-label="Colour legend: coral marks BabySim, teal marks the LLM, grey marks shared machinery">
+      <span class="k"><span class="dot c"></span> BabySim (the toy)</span>
+      <span class="k"><span class="dot t"></span> LLM post-training</span>
+      <span class="k"><span class="dot n"></span> shared machinery</span>
+    </div>
+  </header>
+
+  <!-- ======================= 1. THE LOOP ======================= -->
+  <section>
+    <h2><span class="num">01</span>The loop both live inside</h2>
+    <p class="kicker">Reinforcement learning is one feedback loop: a <b>policy</b> proposes an action
+      from the current state, the <b>environment</b> answers with the next state and a reward, and
+      after a batch of tries the policy is nudged toward whatever earned more reward. Everything else
+      is a detail of what fills each box.</p>
+
+    <figure>
+      <svg class="dia" viewBox="0 0 820 300" role="img" aria-label="The reinforcement-learning loop: a policy sends an action to the environment, which returns the next state and reward; a policy-gradient update adjusts the policy after a batch of episodes.">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+          <marker id="ahc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--coral)"/></marker>
+        </defs>
+        <!-- policy -->
+        <rect x="70" y="86" width="200" height="86" rx="14" fill="var(--surface)" stroke="var(--coral)" stroke-width="2"/>
+        <text x="170" y="123" text-anchor="middle" font-size="17" fill="var(--coral)" font-weight="700">policy  π_θ</text>
+        <text x="170" y="146" text-anchor="middle" font-size="12" fill="var(--muted)">what to do in a state</text>
+        <!-- env -->
+        <rect x="550" y="86" width="200" height="86" rx="14" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+        <text x="650" y="123" text-anchor="middle" font-size="17" font-weight="700">environment</text>
+        <text x="650" y="146" text-anchor="middle" font-size="12" fill="var(--muted)">physics / a conversation</text>
+        <!-- top arrow -->
+        <line x1="272" y1="108" x2="548" y2="108" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+        <text x="410" y="99" text-anchor="middle" font-size="12.5">action  aₜ ~ π_θ(·|sₜ)</text>
+        <!-- bottom arrow -->
+        <line x1="548" y1="150" x2="272" y2="150" stroke="currentColor" stroke-width="1.6" marker-end="url(#ah)"/>
+        <text x="410" y="168" text-anchor="middle" font-size="12.5">next state sₜ₊₁ , reward rₜ</text>
+        <!-- collector to update -->
+        <line x1="410" y1="150" x2="410" y2="212" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 3" marker-end="url(#ah)"/>
+        <rect x="250" y="214" width="320" height="60" rx="12" fill="var(--raise)" stroke="currentColor" stroke-width="1.3"/>
+        <text x="410" y="240" text-anchor="middle" font-size="13.5" font-weight="700">policy-gradient update</text>
+        <text x="410" y="260" text-anchor="middle" font-size="12.5" fill="var(--muted)">θ ← θ + α · ∇θ 𝔼[ return ]</text>
+        <!-- update back to policy -->
+        <path d="M250 244 C120 244 90 244 90 180" fill="none" stroke="var(--coral)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ahc)"/>
+        <text x="120" y="205" font-size="11.5" fill="var(--coral)">improves π</text>
+      </svg>
+      <figcaption><b>The whole of RL.</b> Collect a batch of episodes, score them, push the policy toward
+        the higher-scoring behaviour. BabySim and RLHF differ only in what sits in the two boxes.</figcaption>
+    </figure>
+
+    <div class="eq">∇θ J(θ) = 𝔼<sub>a~π</sub> [ ∇θ log π_θ(a | s) · Â ] &nbsp;&nbsp;— the one estimator, shared by REINFORCE, PPO and GRPO</div>
+    <p class="kicker">Read it as: <em>make the actions that beat the baseline more likely</em>. <span class="m">Â</span>
+      is the <b>advantage</b> (how much better than expected an action was). Every algorithm below is just a
+      different way to compute <span class="m">Â</span>.</p>
+  </section>
+
+  <!-- ======================= 2. SAME SKELETON ======================= -->
+  <section>
+    <h2><span class="num">02</span>Same skeleton, two instantiations</h2>
+    <p class="kicker">Drop BabySim into the loop and you get an inverted pendulum. Drop an LLM in and
+      you get token-by-token text generation. The generic MDP nodes are identical; only the labels differ.</p>
+
+    <figure>
+      <svg class="dia" viewBox="0 0 880 360" role="img" aria-label="The same MDP skeleton — state, policy, action, environment step, reward — labelled two ways: BabySim (coral) on top and LLM post-training (teal) on the bottom.">
+        <defs>
+          <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+        </defs>
+        <!-- coral lane -->
+        <text x="16" y="42" font-size="12" fill="var(--coral)" font-weight="700">BabySim</text>
+        <g font-size="12.5" fill="var(--coral)" text-anchor="middle">
+          <rect x="70" y="20" width="150" height="52" rx="10" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="1.2"/>
+          <text x="145" y="42">lean θ, ω</text><text x="145" y="60" font-size="11">[sinθ, cosθ, ω]</text>
+          <rect x="365" y="20" width="150" height="52" rx="10" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="1.2"/>
+          <text x="440" y="46">ankle torque τ</text>
+          <rect x="660" y="20" width="150" height="52" rx="10" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="1.2"/>
+          <text x="735" y="42">upright?</text><text x="735" y="60" font-size="11">r = cosθ − effort</text>
+        </g>
+        <!-- generic skeleton -->
+        <g font-size="14" text-anchor="middle">
+          <rect x="70" y="150" width="150" height="60" rx="12" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+          <text x="145" y="185" font-weight="700">state sₜ</text>
+          <rect x="365" y="150" width="150" height="60" rx="12" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+          <text x="440" y="180" font-weight="700">action aₜ</text>
+          <text x="440" y="198" font-size="11" fill="var(--muted)">sampled from π</text>
+          <rect x="660" y="150" width="150" height="60" rx="12" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+          <text x="735" y="180" font-weight="700">step → sₜ₊₁</text>
+          <text x="735" y="198" font-size="11" fill="var(--muted)">+ reward rₜ</text>
+          <line x1="222" y1="180" x2="363" y2="180" stroke="currentColor" stroke-width="1.6" marker-end="url(#a2)"/>
+          <text x="292" y="171" font-size="11.5" fill="var(--muted)">π_θ</text>
+          <line x1="517" y1="180" x2="658" y2="180" stroke="currentColor" stroke-width="1.6" marker-end="url(#a2)"/>
+          <text x="588" y="171" font-size="11.5" fill="var(--muted)">environment</text>
+          <!-- loop back -->
+          <path d="M735 212 C735 262 145 262 145 214" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="4 4" marker-end="url(#a2)"/>
+          <text x="440" y="256" font-size="11.5" fill="var(--muted)">repeat until episode ends</text>
+        </g>
+        <!-- tethers -->
+        <g stroke="var(--coral)" stroke-width="1" stroke-dasharray="2 3" opacity=".8">
+          <line x1="145" y1="72" x2="145" y2="150"/><line x1="440" y1="72" x2="440" y2="150"/><line x1="735" y1="72" x2="735" y2="150"/>
+        </g>
+        <g stroke="var(--teal)" stroke-width="1" stroke-dasharray="2 3" opacity=".8">
+          <line x1="145" y1="210" x2="145" y2="288"/><line x1="440" y1="210" x2="440" y2="288"/><line x1="735" y1="210" x2="735" y2="288"/>
+        </g>
+        <!-- teal lane -->
+        <text x="16" y="316" font-size="12" fill="var(--teal)" font-weight="700">LLM</text>
+        <g font-size="12.5" fill="var(--teal)" text-anchor="middle">
+          <rect x="70" y="288" width="150" height="52" rx="10" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="1.2"/>
+          <text x="145" y="310">prompt + tokens</text><text x="145" y="328" font-size="11">the context so far</text>
+          <rect x="365" y="288" width="150" height="52" rx="10" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="1.2"/>
+          <text x="440" y="314">next token</text>
+          <rect x="660" y="288" width="150" height="52" rx="10" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="1.2"/>
+          <text x="735" y="310">answer correct?</text><text x="735" y="328" font-size="11">reward-model score</text>
+        </g>
+      </svg>
+      <figcaption><b>The parallel, exactly.</b> A <span class="cor">torque</span> and a <span class="tea">token</span>
+        are both just "the action sampled from the policy." A balancing episode and a generated answer are both
+        "a trajectory." The reward is <span class="cor">upright-ness</span> for one, an
+        <span class="tea">answer's correctness or a preference score</span> for the other.</figcaption>
+    </figure>
+
+    <div class="twrap"><table>
+      <thead><tr><th>RL concept</th><th class="cor">BabySim (physics.py)</th><th class="tea">LLM post-training</th></tr></thead>
+      <tbody>
+        <tr><td class="role">state s</td><td><code>[sinθ, cosθ, ω]</code> — the lean</td><td>the prompt + tokens generated so far</td></tr>
+        <tr><td class="role">policy π_θ</td><td>linear: <code>τ = W·s + b</code> (3 weights)</td><td>a transformer over the vocabulary</td></tr>
+        <tr><td class="role">action a</td><td>a continuous torque</td><td>the next token (one of ~50k)</td></tr>
+        <tr><td class="role">exploration</td><td>Gaussian noise <code>σ</code></td><td>sampling <code>temperature</code></td></tr>
+        <tr><td class="role">transition</td><td>integrate the pendulum one step</td><td>append the token → new context</td></tr>
+        <tr><td class="role">trajectory</td><td>up to 200 balance steps</td><td>one full completion</td></tr>
+        <tr><td class="role">reward r</td><td><code>cosθ − effort</code>, −5 if it falls</td><td>reward-model score / verifiable correctness</td></tr>
+        <tr><td class="role">return R</td><td>sum over the episode</td><td>usually one terminal reward</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ======================= 3. POLICY SWAP ======================= -->
+  <section>
+    <h2><span class="num">03</span>The only real difference: the policy network</h2>
+    <p class="kicker">Swap the box labelled <span class="m">π_θ</span> and everything else stays put.
+      BabySim's policy is three numbers dotted with the state. An LLM's policy is a stack of transformer
+      blocks — the repo already ships one (<code>NanoLM</code>: RoPE, RMSNorm, ReLU², QK-norm), the same
+      shape as nanochat / nanoGPT. Both map <em>state → a distribution over actions → a sample</em>.</p>
+
+    <figure>
+      <svg class="dia" viewBox="0 0 880 400" role="img" aria-label="Two policies filling the same slot. Left, BabySim: state times three weights gives a mean torque, plus Gaussian noise. Right, a transformer: tokens are embedded, passed through N attention-plus-MLP blocks, projected to logits, and sampled with temperature.">
+        <defs>
+          <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+        </defs>
+        <text x="230" y="26" text-anchor="middle" font-size="13" fill="var(--coral)" font-weight="700">BabySim policy — 4 parameters</text>
+        <text x="650" y="26" text-anchor="middle" font-size="13" fill="var(--teal)" font-weight="700">Transformer policy — millions (NanoLM / nanochat)</text>
+
+        <!-- shared role bracket -->
+        <text x="440" y="384" text-anchor="middle" font-size="12" fill="var(--muted)">same role:  state  →  distribution over actions  →  sample one</text>
+
+        <!-- LEFT: linear policy -->
+        <g text-anchor="middle" font-size="12.5">
+          <rect x="150" y="52" width="160" height="46" rx="9" fill="var(--surface)" stroke="var(--coral)" stroke-width="1.3"/>
+          <text x="230" y="80">state [sinθ, cosθ, ω]</text>
+          <line x1="230" y1="98" x2="230" y2="126" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3)"/>
+          <rect x="150" y="128" width="160" height="52" rx="9" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="1.3"/>
+          <text x="230" y="150" font-weight="700">· W + b</text><text x="230" y="168" font-size="11">one dot product</text>
+          <line x1="230" y1="180" x2="230" y2="208" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3)"/>
+          <rect x="150" y="210" width="160" height="46" rx="9" fill="var(--surface)" stroke="var(--coral)" stroke-width="1.3"/>
+          <text x="230" y="238">mean torque μ</text>
+          <line x1="230" y1="256" x2="230" y2="284" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3)"/>
+          <rect x="150" y="286" width="160" height="52" rx="9" fill="var(--surface)" stroke="var(--coral)" stroke-width="1.3"/>
+          <text x="230" y="308" font-weight="700">+ σ·ε  → τ</text><text x="230" y="326" font-size="11">Gaussian explore</text>
+        </g>
+
+        <!-- RIGHT: transformer -->
+        <g text-anchor="middle" font-size="12.5">
+          <rect x="570" y="52" width="160" height="40" rx="9" fill="var(--surface)" stroke="var(--teal)" stroke-width="1.3"/>
+          <text x="650" y="77">tokens so far</text>
+          <line x1="650" y1="92" x2="650" y2="112" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3)"/>
+          <rect x="570" y="114" width="160" height="38" rx="9" fill="var(--surface)" stroke="var(--teal)" stroke-width="1.1"/>
+          <text x="650" y="138">embed + RoPE</text>
+          <line x1="650" y1="152" x2="650" y2="168" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3)"/>
+          <!-- stacked blocks -->
+          <rect x="560" y="170" width="180" height="86" rx="10" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="1.4"/>
+          <text x="650" y="190" font-weight="700" fill="var(--teal)">× N blocks</text>
+          <text x="650" y="211" font-size="11">RMSNorm → self-attention</text>
+          <text x="650" y="228" font-size="11">(QK-norm, causal)</text>
+          <text x="650" y="246" font-size="11">RMSNorm → MLP (ReLU²)</text>
+          <line x1="650" y1="256" x2="650" y2="272" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3)"/>
+          <rect x="570" y="274" width="160" height="36" rx="9" fill="var(--surface)" stroke="var(--teal)" stroke-width="1.1"/>
+          <text x="650" y="297">logits over vocab</text>
+          <line x1="650" y1="310" x2="650" y2="326" stroke="currentColor" stroke-width="1.5" marker-end="url(#a3)"/>
+          <rect x="570" y="328" width="160" height="34" rx="9" fill="var(--surface)" stroke="var(--teal)" stroke-width="1.3"/>
+          <text x="650" y="350" font-weight="700">softmax /T → token</text>
+        </g>
+      </svg>
+      <figcaption><b>Both are π_θ(a | s).</b> The linear policy can only express <span class="m">τ = −k₁·lean − k₂·ω</span>
+        (textbook PD/LQR control) — which is exactly what REINFORCE discovers here (<code>W ≈ [−43, ~2, −24]</code>).
+        A transformer can express arbitrarily nonlinear policies; its "action distribution" is a softmax over tokens, and
+        its exploration knob (temperature) is BabySim's <span class="m">σ</span>. The learning loop around it is unchanged.</figcaption>
+    </figure>
+
+    <div class="note"><b>This is the swap that matters.</b> Replacing BabySim's 3-weight policy with the repo's
+      <code>NanoLM</code> transformer — and torques with tokens — turns the exact same training loop into
+      nanochat-style RL post-training. Nothing about the gradient estimator changes.</div>
+  </section>
+
+  <!-- ======================= 4. PIPELINE ======================= -->
+  <section>
+    <h2><span class="num">04</span>Even the training pipeline rhymes</h2>
+    <p class="kicker">BabySim's two model families map onto the two halves of an LLM's life. Imitating a fixed
+      ideal pose is supervised learning; earning reward under real physics is RL.</p>
+
+    <figure>
+      <svg class="dia" viewBox="0 0 860 220" role="img" aria-label="Two aligned pipelines. LLM: pretrain on next-token prediction, then SFT to imitate demonstrations, then RL from reward. BabySim: imitate ideal milestone poses (like SFT), then learn balance from reward under physics (like RL).">
+        <defs>
+          <marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+        </defs>
+        <text x="14" y="60" font-size="12" fill="var(--teal)" font-weight="700">LLM</text>
+        <g text-anchor="middle" font-size="12.5" fill="var(--teal)">
+          <rect x="70" y="34" width="180" height="52" rx="10" fill="var(--surface)" stroke="var(--teal)" stroke-width="1.2"/>
+          <text x="160" y="56" font-weight="700">pretrain</text><text x="160" y="74" font-size="11">next-token on the web</text>
+          <rect x="330" y="34" width="180" height="52" rx="10" fill="var(--surface)" stroke="var(--teal)" stroke-width="1.2"/>
+          <text x="420" y="56" font-weight="700">SFT</text><text x="420" y="74" font-size="11">imitate demonstrations</text>
+          <rect x="590" y="34" width="200" height="52" rx="10" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="1.6"/>
+          <text x="690" y="56" font-weight="700">RL — RLHF / GRPO</text><text x="690" y="74" font-size="11">optimise a reward</text>
+          <line x1="252" y1="60" x2="328" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#a4)"/>
+          <line x1="512" y1="60" x2="588" y2="60" stroke="currentColor" stroke-width="1.5" marker-end="url(#a4)"/>
+        </g>
+        <text x="14" y="164" font-size="12" fill="var(--coral)" font-weight="700">BabySim</text>
+        <g text-anchor="middle" font-size="12.5" fill="var(--coral)">
+          <rect x="330" y="138" width="180" height="52" rx="10" fill="var(--surface)" stroke="var(--coral)" stroke-width="1.2"/>
+          <text x="420" y="160" font-weight="700">milestone poses</text><text x="420" y="178" font-size="11">imitate an ideal pose</text>
+          <rect x="590" y="138" width="200" height="52" rx="10" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="1.6"/>
+          <text x="690" y="160" font-weight="700">balance — REINFORCE</text><text x="690" y="178" font-size="11">optimise a reward</text>
+          <line x1="512" y1="164" x2="588" y2="164" stroke="currentColor" stroke-width="1.5" marker-end="url(#a4)"/>
+        </g>
+        <!-- alignment tethers -->
+        <g stroke="var(--muted)" stroke-width="1" stroke-dasharray="2 3" opacity=".6">
+          <line x1="420" y1="86" x2="420" y2="138"/><line x1="690" y1="86" x2="690" y2="138"/>
+        </g>
+      </svg>
+      <figcaption><b>SFT ≈ imitation, RL ≈ reward.</b> BabySim's kinematic milestones (match a hand-authored
+        ideal pose) play the role of supervised fine-tuning; the physics balance track (earn reward, no target
+        to copy) is the RL stage. BabySim simply skips the web-scale pretrain it doesn't need.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ======================= 5. ALGORITHM LADDER ======================= -->
+  <section>
+    <h2><span class="num">05</span>REINFORCE → PPO → GRPO: only the advantage changes</h2>
+    <p class="kicker">All three plug into the <em>same</em> gradient <span class="m">∇J = 𝔼[∇log π · Â]</span>.
+      They differ in one place — how they compute the advantage <span class="m">Â</span>, i.e. what they compare
+      each trajectory against. That's the whole ladder.</p>
+
+    <figure>
+      <svg class="dia" viewBox="0 0 880 330" role="img" aria-label="Three ways to compute the advantage feeding one shared gradient. REINFORCE subtracts the batch mean (BabySim is here). PPO learns a value critic and uses GAE plus a clipped ratio. GRPO samples a group of answers per prompt and subtracts the group mean — the same idea as REINFORCE's baseline — with a KL penalty and no critic.">
+        <defs>
+          <marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+          <marker id="a5c" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--coral)"/></marker>
+        </defs>
+        <!-- three advantage boxes -->
+        <g text-anchor="middle">
+          <!-- REINFORCE -->
+          <rect x="40" y="30" width="230" height="96" rx="12" fill="var(--coral-soft)" stroke="var(--coral)" stroke-width="1.8"/>
+          <text x="155" y="54" font-size="13.5" font-weight="700" fill="var(--coral)">REINFORCE</text>
+          <text x="155" y="76" font-size="12">Â = R − mean(batch)</text>
+          <text x="155" y="95" font-size="11" fill="var(--muted)">no critic · constant baseline</text>
+          <text x="155" y="114" font-size="11" fill="var(--coral)" font-weight="700">← BabySim is here</text>
+          <!-- PPO -->
+          <rect x="325" y="30" width="230" height="96" rx="12" fill="var(--surface)" stroke="currentColor" stroke-width="1.4"/>
+          <text x="440" y="54" font-size="13.5" font-weight="700">PPO</text>
+          <text x="440" y="76" font-size="12">Â = GAE( learned V(s) )</text>
+          <text x="440" y="95" font-size="11" fill="var(--muted)">value critic · clipped ratio</text>
+          <text x="440" y="114" font-size="11" fill="var(--muted)">lower variance · heavier</text>
+          <!-- GRPO -->
+          <rect x="610" y="30" width="230" height="96" rx="12" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="1.8"/>
+          <text x="725" y="54" font-size="13.5" font-weight="700" fill="var(--teal)">GRPO</text>
+          <text x="725" y="76" font-size="12">Â = (r − mean(group))/std</text>
+          <text x="725" y="95" font-size="11" fill="var(--muted)">no critic · group baseline · +KL</text>
+          <text x="725" y="114" font-size="11" fill="var(--teal)" font-weight="700">DeepSeek / modern RLHF</text>
+        </g>
+        <!-- funnel into shared gradient -->
+        <line x1="155" y1="126" x2="380" y2="188" stroke="currentColor" stroke-width="1.4" marker-end="url(#a5)"/>
+        <line x1="440" y1="126" x2="440" y2="188" stroke="currentColor" stroke-width="1.4" marker-end="url(#a5)"/>
+        <line x1="725" y1="126" x2="500" y2="188" stroke="currentColor" stroke-width="1.4" marker-end="url(#a5)"/>
+        <rect x="250" y="190" width="380" height="56" rx="12" fill="var(--raise)" stroke="currentColor" stroke-width="1.5"/>
+        <text x="440" y="216" text-anchor="middle" font-size="14" font-weight="700">one gradient step</text>
+        <text x="440" y="236" text-anchor="middle" font-size="12.5" fill="var(--muted)">θ ← θ + α · 𝔼[ ∇log π_θ(a|s) · Â ]</text>
+        <!-- the aha arrow -->
+        <path d="M155 126 C120 160 120 280 300 292 C480 302 560 210 610 150" fill="none"
+              stroke="var(--coral)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#a5c)"/>
+        <text x="350" y="312" text-anchor="middle" font-size="12" fill="var(--coral)">BabySim's batch-mean baseline <tspan font-style="italic">is</tspan> GRPO's group baseline — minus the transformer &amp; the KL leash</text>
+      </svg>
+      <figcaption><b>The punchline.</b> <code>train_balance</code> already computes
+        <code>adv = (R − mean)/std</code> over a batch — that is precisely GRPO's group-relative advantage.
+        BabySim is a hair away from the algorithm behind DeepSeek-R1: give it a transformer policy, a group of
+        samples per prompt, and a KL penalty to a reference model, and REINFORCE-here becomes GRPO-there.</figcaption>
+    </figure>
+
+    <div class="grid2">
+      <div class="card c"><h3>What BabySim has</h3>
+        <ul>
+          <li>Gaussian policy, exact score-function gradient</li>
+          <li>Batch-mean, std-normalised baseline</li>
+          <li>Return-weighted credit (whole-episode)</li>
+          <li>Fixed exploration σ</li>
+        </ul></div>
+      <div class="card t"><h3>What the ladder adds</h3>
+        <ul>
+          <li><b>PPO:</b> a value critic + GAE (lower variance), clipped updates (stability)</li>
+          <li><b>GRPO:</b> drop the critic, use the group mean; add a KL leash to a reference model</li>
+          <li>reward-to-go instead of one blunt return</li>
+          <li>a transformer policy for nonlinear control</li>
+        </ul></div>
+    </div>
+    <p class="kicker" style="margin-top:20px">Which is exactly the experiment plan: each upgrade is one clean knob
+      — critic vs no critic, clip vs no clip, group baseline, MLP policy — measured on the same balance task by the
+      same metric (steps kept upright). That's how we'll race REINFORCE, PPO and GRPO next.</p>
+  </section>
+
+  <div class="foot">BabySim · physics.py + sim.py · a nano-scale mirror of RLHF/GRPO — same loop, smaller body.</div>
+
+</div></div>
